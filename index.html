@@ -1769,7 +1769,7 @@ function ProfileTab({ profile, setProfile, plan, onReset }) {
     <div style={{ marginBottom: 10 }}>
       <Label>{label}</Label>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <input type="number" value={profile[k]} onChange={(e) => { const v = e.target.value; upd(k, v === "" ? "" : parseFloat(v)); }} style={{ ...inputStyle, width: w }} />
+        <input type="number" min="0" value={profile[k]} onChange={(e) => { const v = e.target.value; const n = parseFloat(v); upd(k, v === "" ? "" : (n < 0 ? 0 : n)); }} style={{ ...inputStyle, width: w }} />
         <span style={{ fontSize: 12, color: T.soft }}>{unit}</span>
       </div>
     </div>
@@ -1789,9 +1789,11 @@ function ProfileTab({ profile, setProfile, plan, onReset }) {
     upd("diseases", next);
   };
 
-  // ft+in ↔ cm helpers
-  const cmToFtIn = (cm) => { const totalIn = cm / 2.54; const ft = Math.floor(totalIn / 12); return { ft, inches: Math.round(totalIn % 12) }; };
-  const { ft: dispFt, inches: dispIn } = cmToFtIn(Number(profile.height) || 0);
+  // ft+in: use local state so typing "5" stays "5" (not re-derived from cm each render)
+  const initFtIn = () => { const cm = Number(profile.height) || 0; const totalIn = cm / 2.54; return { ft: cm ? String(Math.floor(totalIn / 12)) : "", in: cm ? String(Math.round(totalIn % 12)) : "" }; };
+  const [ftVal, setFtVal] = React.useState(initFtIn().ft);
+  const [inVal, setInVal] = React.useState(initFtIn().in);
+  const ftInToCm = (f, i) => { const n = Math.round((parseFloat(f) * 12 + parseFloat(i)) * 2.54); return isNaN(n) ? "" : n; };
 
   const pct = Math.round((plan.target / plan.tdee) * 100);
 
@@ -1829,9 +1831,13 @@ function ProfileTab({ profile, setProfile, plan, onReset }) {
             </div>
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input type="number" min="1" max="8" value={dispFt || ""} onChange={(e) => { const f = parseFloat(e.target.value) || 0; upd("height", Math.round((f * 12 + dispIn) * 2.54)); }} style={{ ...inputStyle, width: 60 }} placeholder="5" />
+              <input type="number" min="1" max="8" value={ftVal} placeholder="5"
+                onChange={(e) => { setFtVal(e.target.value); upd("height", ftInToCm(e.target.value, inVal)); }}
+                style={{ ...inputStyle, width: 60 }} />
               <span style={{ fontSize: 12, color: T.soft }}>ft</span>
-              <input type="number" min="0" max="11" value={dispIn || ""} onChange={(e) => { const i = parseFloat(e.target.value) || 0; upd("height", Math.round((dispFt * 12 + i) * 2.54)); }} style={{ ...inputStyle, width: 60 }} placeholder="11" />
+              <input type="number" min="0" max="11" value={inVal} placeholder="11"
+                onChange={(e) => { setInVal(e.target.value); upd("height", ftInToCm(ftVal, e.target.value)); }}
+                style={{ ...inputStyle, width: 60 }} />
               <span style={{ fontSize: 12, color: T.soft }}>in</span>
               {profile.height ? <span style={{ fontSize: 11, color: T.soft }}>= {profile.height} cm</span> : null}
             </div>
@@ -1872,7 +1878,7 @@ function ProfileTab({ profile, setProfile, plan, onReset }) {
               <div key={k}>
                 <div style={{ fontSize: 11, color: T.soft, marginBottom: 4 }}>{label}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <input type="number" value={profile[k] || ""} onChange={(e) => { const v = e.target.value; upd(k, v === "" ? "" : parseFloat(v)); }} style={{ ...inputStyle, width: "100%" }} placeholder="—" />
+                  <input type="number" min="0" value={profile[k] || ""} onChange={(e) => { const v = e.target.value; const n = parseFloat(v); upd(k, v === "" ? "" : (n < 0 ? 0 : n)); }} style={{ ...inputStyle, width: "100%" }} placeholder="—" />
                   <span style={{ fontSize: 11, color: T.soft, whiteSpace: "nowrap" }}>{unit}</span>
                 </div>
               </div>
