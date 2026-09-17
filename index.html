@@ -1717,16 +1717,40 @@ function AwardsTab({ workoutLog, meals, profile, plan, exerciseDb, dateLabel }) 
       </Card>
 
       <Card>
-        <Label>Body composition</Label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
-          <div>Weight <Num size={14}>{profile.weight || "—"} kg</Num></div>
-          <div>Body fat <Num size={14}>{profile.bodyFat ? `${profile.bodyFat}%` : "—"}</Num></div>
-          <div>Muscle mass <Num size={14}>{profile.muscleMass ? `${profile.muscleMass} kg` : "—"}</Num></div>
-          <div>Visceral fat <Num size={14}>{profile.visceralFat || "—"}</Num></div>
-          <div>Goal weight <Num size={14}>{profile.goalWeight || "—"} kg</Num></div>
-          <div>To lose <Num size={14}>{profile.weight && profile.goalWeight ? `${(profile.weight - profile.goalWeight).toFixed(1)} kg` : "—"}</Num></div>
-        </div>
-        {!profile.bodyFat && <div style={{ fontSize: 11, color: T.soft, marginTop: 8 }}>Enter body fat %, muscle mass, and visceral fat in Profile → Body composition.</div>}
+        {(() => {
+          const wt = Number(profile.weight) || 0;
+          const ht = Number(profile.height) || 0;
+          const age = Number(profile.age) || 0;
+          const sex = profile.sex || "male";
+          const bmi = ht > 0 ? wt / ((ht / 100) ** 2) : 0;
+          // Deurenberg 1991 body fat estimate
+          const estBF = bmi > 0 ? Math.max(0, +(1.20 * bmi + 0.23 * age - (sex === "male" ? 16.2 : 5.4)).toFixed(1)) : null;
+          const estMM = estBF && wt ? +((wt * (1 - estBF / 100)) * (sex === "male" ? 0.47 : 0.44)).toFixed(1) : null;
+          // Visceral fat: qualitative level from BMI + age (InBody 1–20 scale)
+          const estVF = bmi > 0 ? (bmi >= 30 ? (age >= 50 ? 16 : 13) : bmi >= 25 ? (age >= 50 ? 12 : 9) : bmi >= 23 ? (age >= 50 ? 8 : 6) : 4) : null;
+
+          const bf   = profile.bodyFat   || (estBF  ? `~${estBF}`  : "—");
+          const mm   = profile.muscleMass || (estMM  ? `~${estMM}`  : "—");
+          const vf   = profile.visceralFat || (estVF  ? `~${estVF}`  : "—");
+          const isEst = !profile.bodyFat && estBF;
+          return (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <Label>Body composition</Label>
+                {isEst && <span style={{ fontSize: 10, color: T.accent2, background: "rgba(177,79,255,0.12)", padding: "2px 8px", borderRadius: 99 }}>~ Estimated</span>}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+                <div>Weight <Num size={14}>{wt || "—"} kg</Num></div>
+                <div>Body fat <Num size={14}>{bf}{typeof bf === "number" || (typeof bf === "string" && !bf.startsWith("~") && bf !== "—") ? "%" : (bf.startsWith("~") ? "%" : "")}</Num></div>
+                <div>Muscle mass <Num size={14}>{mm}{mm !== "—" ? " kg" : ""}</Num></div>
+                <div>Visceral fat <Num size={14}>{vf}</Num></div>
+                <div>Goal weight <Num size={14}>{profile.goalWeight || "—"} kg</Num></div>
+                <div>To lose <Num size={14}>{wt && profile.goalWeight ? `${(wt - profile.goalWeight).toFixed(1)} kg` : "—"}</Num></div>
+              </div>
+              {isEst && <div style={{ fontSize: 11, color: T.soft, marginTop: 8 }}>~ values estimated from height/weight/age. Enter InBody results in Profile to see actuals.</div>}
+            </>
+          );
+        })()}
       </Card>
 
       <Card>
