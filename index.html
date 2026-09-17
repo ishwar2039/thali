@@ -835,7 +835,7 @@ function MacroBar({ value, target, grad, showPct }) {
   );
 }
 
-function FoodTab({ meals, addFood, plan, profile, foodDb, addFoodToDb, mealPlans, saveMealPlan, deleteMealPlan, dateLabel }) {
+function FoodTab({ meals, addFood, addFoods, removeFood, plan, profile, foodDb, addFoodToDb, mealPlans, saveMealPlan, deleteMealPlan, dateLabel }) {
   const [foodPick, setFoodPick] = useState(foodDb[0].name);
   const [qty, setQty] = useState(1);
   const [meal, setMeal] = useState("Lunch");
@@ -845,7 +845,7 @@ function FoodTab({ meals, addFood, plan, profile, foodDb, addFoodToDb, mealPlans
   const [mealFilter, setMealFilter] = useState("All");
   const [insightView, setInsightView] = useState(null); // null | "contributors" | "micros"
   const [contributorMacro, setContributorMacro] = useState("p");
-  const [logMode, setLogMode] = useState("local"); // "ai" | "local" | "gemini" | "online"
+  const [logMode, setLogMode] = useState("ai"); // "ai" | "local" | "gemini" | "online"
   const [onlineResults, setOnlineResults] = useState([]);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [onlineError, setOnlineError] = useState("");
@@ -942,29 +942,41 @@ Use standard Indian home-cooked values where applicable. All numbers must be pla
   function parseAIPaste(text) {
     const entries = [];
     let currentMeal = "Breakfast";
+    // extract a number that appears BEFORE or AFTER a keyword, in g or mg
+    const grab = (line, kw, mg = false) => {
+      const u = mg ? "mg" : "g";
+      const m = line.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*${u}\\s*${kw}|${kw}[\\w]*[\\s:|]*?(\\d+(?:\\.\\d+)?)\\s*${u}`, "i"));
+      return m ? parseFloat(m[1] || m[2]) : 0;
+    };
     for (const raw of text.split("\n")) {
       const line = raw.trim();
       if (!line) continue;
-      if (/^#+\s*breakfast|^\*?\*?breakfast\*?\*?:/i.test(line)) { currentMeal = "Breakfast"; continue; }
-      if (/^#+\s*lunch|^\*?\*?lunch\*?\*?:/i.test(line))         { currentMeal = "Lunch"; continue; }
-      if (/^#+\s*dinner|^\*?\*?dinner\*?\*?:/i.test(line))       { currentMeal = "Dinner"; continue; }
-      if (/^#+\s*snack|^\*?\*?snack\*?\*?:/i.test(line))         { currentMeal = "Snack"; continue; }
-      const kcalM = line.match(/(\d+(?:\.\d+)?)\s*(?:kcal|cal|calories)/i);
+      // Meal header — bare word or with #/*/: decoration, also "Evening Snacks"
+      const hdr = line.replace(/^[#\*\-\s]+/, "").replace(/[:\*\s]+$/, "").toLowerCase();
+      if (/^breakfast/.test(hdr))              { currentMeal = "Breakfast"; continue; }
+      if (/^lunch/.test(hdr))                  { currentMeal = "Lunch";     continue; }
+      if (/^dinner/.test(hdr))                 { currentMeal = "Dinner";    continue; }
+      if (/^(snack|evening|pre|post)/.test(hdr)) { currentMeal = "Snack";  continue; }
+      // Must have a calorie value
+      const kcalM = line.match(/(\d+(?:\.\d+)?)\s*(?:kcal|cal\b|calories)/i);
       if (!kcalM) continue;
       const kcal = parseFloat(kcalM[1]);
-      const pM = line.match(/(?:protein|p)[\s:]*(\d+(?:\.\d+)?)\s*g/i);
-      const cM = line.match(/(?:carb[a-z]*|c)[\s:]*(\d+(?:\.\d+)?)\s*g/i);
-      const fM = line.match(/(?:fat|f)[\s:]*(\d+(?:\.\d+)?)\s*g/i);
-      const p = pM ? parseFloat(pM[1]) : 0;
-      const c = cM ? parseFloat(cM[1]) : 0;
-      const f = fM ? parseFloat(fM[1]) : 0;
+      const p         = grab(line, "protein");
+      const c         = grab(line, "carb");
+      const f         = grab(line, "fat");
+      const fiber     = grab(line, "fiber");
+      const iron      = grab(line, "iron",      true);
+      const calcium   = grab(line, "calcium",   true);
+      const sodium    = grab(line, "sodium",    true);
+      const potassium = grab(line, "potassium", true);
+      // Name = everything before the first : | ( on the line, strip bullet chars
       let name = line.replace(/^[\-\*•|\s]+/, "").replace(/\*\*/g, "");
       const cut = Math.min(...[name.indexOf(":"), name.indexOf("|"), name.indexOf("(")].filter((x) => x > 0).concat([Infinity]));
       if (cut < Infinity) name = name.slice(0, cut);
-      name = name.trim().slice(0, 50);
-      if (!name || /^(total|summary|food|item|quantity|serving)/i.test(name)) continue;
+      name = name.trim().slice(0, 55);
+      if (!name || /^(total|summary|note|food|item|qty)/i.test(name)) continue;
       if (kcal === 0 && p === 0) continue;
-      entries.push({ name, kcal, p, c, f, fiber: 0, iron: 0, calcium: 0, sodium: 0, potassium: 0, meal: currentMeal });
+      entries.push({ name, kcal, p, c, f, fiber, iron, calcium, sodium, potassium, meal: currentMeal });
     }
     return entries;
   }
@@ -1025,7 +1037,7 @@ Use standard Indian home-cooked values where applicable. All numbers must be pla
   const pt = personalizedTargets(profile, plan.target);
   const macroTargets = { p: pt.protein, c: pt.carbs, f: pt.fat };
 
-  const MEAL_TABS = ["All", "Breakfast", "Lunch", "Dinner", "Snack"];
+  const MEAL_TABS = ["All", "Breakfast", "Lunch", "Snack", "Dinner"];
 
   const macroConfig = [
     { key: "p", label: "Protein", color: T.good, grad: "linear-gradient(90deg,#00D4A0,#00BFFF)", unit: "g" },
@@ -1280,11 +1292,11 @@ Use standard Indian home-cooked values where applicable. All numbers must be pla
                 </div>
                 <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
                   <button onClick={() => {
-                    mp.items.forEach((item) => {
+                    addFoods(mp.items.flatMap((item) => {
                       const fd = foodDb.find((f) => f.name === item.foodName);
-                      if (!fd) return;
-                      addFood({ meal: mp.mealType, name: fd.name, kcal: fd.kcal * item.qty, p: fd.p * item.qty, c: fd.c * item.qty, f: fd.f * item.qty, fiber: (fd.fiber || 0) * item.qty, iron: (fd.iron || 0) * item.qty, calcium: (fd.calcium || 0) * item.qty, sodium: (fd.sodium || 0) * item.qty, potassium: (fd.potassium || 0) * item.qty });
-                    });
+                      if (!fd) return [];
+                      return [{ meal: mp.mealType, name: fd.name, kcal: fd.kcal * item.qty, p: fd.p * item.qty, c: fd.c * item.qty, f: fd.f * item.qty, fiber: (fd.fiber || 0) * item.qty, iron: (fd.iron || 0) * item.qty, calcium: (fd.calcium || 0) * item.qty, sodium: (fd.sodium || 0) * item.qty, potassium: (fd.potassium || 0) * item.qty }];
+                    }));
                     showToast(`✓ Logged "${mp.name}"`);
                   }} style={{ background: T.gradAccent, border: "none", color: "#fff", fontSize: 12, padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>Log</button>
                   <button onClick={() => { if (window.confirm(`Delete "${mp.name}"?`)) deleteMealPlan(mealPlans.indexOf(mp)); }} style={{ background: "rgba(255,75,110,0.12)", border: "none", color: T.alert, fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: "pointer" }}>✕</button>
@@ -1358,15 +1370,16 @@ Use standard Indian home-cooked values where applicable. All numbers must be pla
           <div style={{ color: T.soft, fontSize: 13, padding: "8px 0" }}>Nothing logged{mealFilter !== "All" ? ` for ${mealFilter}` : ""} yet.</div>
         ) : (
           viewMeals.map((m, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < viewMeals.length - 1 ? `1px solid ${T.border}` : "none" }}>
-              <div>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < viewMeals.length - 1 ? `1px solid ${T.border}` : "none", gap: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, color: T.ink, fontWeight: 600 }}>{m.name}</div>
                 <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>{m.meal} · P:{Math.round(m.p)}g C:{Math.round(m.c)}g F:{Math.round(m.f)}g</div>
               </div>
-              <div style={{ textAlign: "right" }}>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <GradText style={{ fontSize: 16, fontWeight: 700, fontFamily: T.mono }}>{Math.round(m.kcal)}</GradText>
                 <div style={{ fontSize: 11, color: T.soft }}>kcal</div>
               </div>
+              <button onClick={() => removeFood(m._idx)} style={{ background: "rgba(255,75,110,0.12)", border: "none", color: T.alert, fontSize: 13, width: 28, height: 28, borderRadius: 8, cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
           ))
         )}
@@ -1376,7 +1389,7 @@ Use standard Indian home-cooked values where applicable. All numbers must be pla
       <Card>
         <Label>Log Food</Label>
         <select value={meal} onChange={(e) => setMeal(e.target.value)} style={selectStyle}>
-          {["Breakfast", "Lunch", "Dinner", "Snack"].map((m) => <option key={m}>{m}</option>)}
+          {["Breakfast", "Lunch", "Snack", "Dinner"].map((m) => <option key={m}>{m}</option>)}
         </select>
         {/* Mode tabs */}
         <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
@@ -1602,7 +1615,7 @@ Use Indian home-cooked values where applicable.`;
                   <GradText style={{ fontSize: 16, fontWeight: 700, fontFamily: T.mono }}>{Math.round(aiParsed.reduce((s, x) => s + x.kcal, 0))} kcal</GradText>
                 </div>
                 <button style={{ ...btnStyle, width: "100%", padding: 12 }} onClick={() => {
-                  aiParsed.forEach((item) => addFood(item));
+                  addFoods(aiParsed);
                   showToast(`✓ Logged ${aiParsed.length} items from AI paste`);
                   setAiParsed(null); setAiPasteText(""); setLogMode("local");
                 }}>＋ Log All {aiParsed.length} Items</button>
@@ -1960,7 +1973,9 @@ function App() {
   }, [profile, meals, workoutLog, exerciseDb, foodDb, mealPlans]);
 
   const plan = safeDeficitPlan(profile);
-  const addFood = (m) => setMeals([...meals, { ...m, date: viewDate }]);
+  const addFood = (m) => setMeals((prev) => [...prev, { ...m, date: viewDate }]);
+  const addFoods = (items) => setMeals((prev) => [...prev, ...items.map((m) => ({ ...m, date: viewDate }))]);
+  const removeFood = (idx) => setMeals(meals.filter((_, i) => i !== idx));
   const addWorkout = (exs) => setWorkoutLog([...workoutLog, ...exs.map((e) => ({ ...e, date: viewDate }))]);
   const removeWorkout = (i) => setWorkoutLog(workoutLog.filter((_, idx) => idx !== i));
   const addExercise = (e) => setExerciseDb([...exerciseDb, e]);
@@ -1976,7 +1991,7 @@ function App() {
     window.location.reload();
   };
 
-  const viewMeals = meals.filter((m) => m.date === viewDate);
+  const viewMeals = meals.map((m, i) => ({ ...m, _idx: i })).filter((m) => m.date === viewDate);
   const workoutWithIdx = workoutLog.map((w, i) => ({ ...w, _idx: i }));
   const viewWorkout = workoutWithIdx.filter((w) => w.date === viewDate);
   const dateLabel = formatDateLabel(viewDate, todayISO);
@@ -2019,7 +2034,7 @@ function App() {
         <div style={{ flex: 1, padding: "0 14px 110px", overflowY: "auto" }}>
           {tab === "Profile" && <ProfileTab profile={profile} setProfile={setProfile} plan={plan} onReset={resetAll} />}
           {tab === "Workout" && <WorkoutTab workoutLog={viewWorkout} addWorkout={addWorkout} removeWorkout={removeWorkout} profile={profile} exerciseDb={exerciseDb} addExercise={addExercise} dateLabel={dateLabel} />}
-          {tab === "Food" && <FoodTab meals={viewMeals} addFood={addFood} plan={plan} profile={profile} foodDb={foodDb} addFoodToDb={addFoodToDb} mealPlans={mealPlans} saveMealPlan={saveMealPlan} deleteMealPlan={deleteMealPlan} dateLabel={dateLabel} />}
+          {tab === "Food" && <FoodTab meals={viewMeals} addFood={addFood} addFoods={addFoods} removeFood={removeFood} plan={plan} profile={profile} foodDb={foodDb} addFoodToDb={addFoodToDb} mealPlans={mealPlans} saveMealPlan={saveMealPlan} deleteMealPlan={deleteMealPlan} dateLabel={dateLabel} />}
           {tab === "Awards" && <AwardsTab workoutLog={viewWorkout} meals={viewMeals} profile={profile} plan={plan} exerciseDb={exerciseDb} dateLabel={dateLabel} />}
         </div>
 
