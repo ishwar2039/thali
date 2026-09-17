@@ -1936,7 +1936,8 @@ function App() {
   const saved = loadSaved();
   const todayISO = new Date().toISOString().slice(0, 10);
 
-  const [profile, setProfile] = useState(saved?.profile || { weight: "", height: "", age: "", sex: "male", goalWeight: "", activity: "moderate", diseases: [], bodyFat: "", muscleMass: "", visceralFat: "" });
+  const DEFAULT_PROFILE = { weight: "", height: "", age: "", sex: "male", goalWeight: "", activity: "moderate", diseases: [], bodyFat: "", muscleMass: "", visceralFat: "" };
+  const [profile, setProfile] = useState(saved?.profile ? { ...DEFAULT_PROFILE, ...saved.profile } : DEFAULT_PROFILE);
   const [meals, setMeals] = useState(saved?.meals || []);
   const [workoutLog, setWorkoutLog] = useState(
     saved?.workoutLog || []
