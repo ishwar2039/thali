@@ -1,0 +1,1942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Thali — Nutrition &amp; Training Tracker</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; background: #0B0B18; }
+  * { box-sizing: border-box; }
+  button, input, select, textarea { font: inherit; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+  input::placeholder, textarea::placeholder { color: rgba(200,195,230,0.35); }
+  option { background: #1A1A2E; color: #E8E6FF; }
+  @keyframes pulse-glow {
+    0%,100% { box-shadow: 0 0 8px 2px rgba(255,107,53,0.35); }
+    50%      { box-shadow: 0 0 18px 6px rgba(177,79,255,0.50); }
+  }
+  @keyframes slide-up {
+    from { opacity:0; transform:translateY(14px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .card-enter { animation: slide-up 0.25s ease both; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useEffect } = React;
+
+/* ---------- design tokens ---------- */
+const T = {
+  bg: "#0B0B18",
+  surface: "rgba(255,255,255,0.055)",
+  surfaceHover: "rgba(255,255,255,0.09)",
+  border: "rgba(255,255,255,0.10)",
+  ink: "#EDEAFF",
+  soft: "#9490B8",
+  accent: "#FF6B35",
+  accent2: "#B14FFF",
+  accentSoft: "rgba(255,107,53,0.14)",
+  gradAccent: "linear-gradient(135deg,#FF6B35 0%,#B14FFF 100%)",
+  gradAccentH: "linear-gradient(135deg,#FF8556 0%,#C970FF 100%)",
+  good: "#00D4A0",
+  goodSoft: "rgba(0,212,160,0.14)",
+  alert: "#FF4B6E",
+  alertSoft: "rgba(255,75,110,0.14)",
+  gold: "#FFD700",
+  goldSoft: "rgba(255,215,0,0.14)",
+  cardGlass: "rgba(255,255,255,0.055)",
+  sans: "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif",
+  mono: "'SF Mono',Menlo,Consolas,monospace",
+  serif: "-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif",
+};
+
+const STORAGE_KEY = "thali-app-state-v1";
+function loadSaved() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+/* ---------- seed data ---------- */
+const SEED_EXERCISES = [
+  // ── Legs ──────────────────────────────────────────────────────────────
+  { name: "Squat (Barbell)", group: "Legs" },
+  { name: "Squat (Dumbbell)", group: "Legs" },
+  { name: "Squat (Smith Machine)", group: "Legs" },
+  { name: "Goblet Squat", group: "Legs" },
+  { name: "Hack Squat", group: "Legs" },
+  { name: "Sumo Squat", group: "Legs" },
+  { name: "Wall Sit", group: "Legs" },
+  { name: "Leg Press (Machine)", group: "Legs" },
+  { name: "Leg Extension (Machine)", group: "Legs" },
+  { name: "Seated Leg Curl (Machine)", group: "Legs" },
+  { name: "Lying Leg Curl (Machine)", group: "Legs" },
+  { name: "Romanian Deadlift (Barbell)", group: "Legs" },
+  { name: "Romanian Deadlift (Dumbbell)", group: "Legs" },
+  { name: "Sumo Deadlift", group: "Legs" },
+  { name: "Lunge", group: "Legs" },
+  { name: "Walking Lunge", group: "Legs" },
+  { name: "Reverse Lunge", group: "Legs" },
+  { name: "Bulgarian Split Squat", group: "Legs" },
+  { name: "Step Up", group: "Legs" },
+  { name: "Box Jump", group: "Legs" },
+  { name: "Hip Thrust (Barbell)", group: "Legs" },
+  { name: "Glute Bridge", group: "Legs" },
+  { name: "Calf Raise (Machine)", group: "Legs" },
+  { name: "Calf Raise (Standing)", group: "Legs" },
+  { name: "Calf Raise (Seated)", group: "Legs" },
+  { name: "Lateral Leg Raises", group: "Legs" },
+  { name: "Nordic Hamstring Curl", group: "Legs" },
+  { name: "Sissy Squat", group: "Legs" },
+  { name: "Donkey Kick", group: "Legs" },
+  { name: "Fire Hydrant", group: "Legs" },
+  { name: "Good Morning (Barbell)", group: "Legs" },
+  // ── Chest ─────────────────────────────────────────────────────────────
+  { name: "Bench Press (Barbell)", group: "Chest" },
+  { name: "Bench Press (Dumbbell)", group: "Chest" },
+  { name: "Bench Press (Smith Machine)", group: "Chest" },
+  { name: "Incline Bench Press (Barbell)", group: "Chest" },
+  { name: "Incline Dumbbell Press", group: "Chest" },
+  { name: "Decline Bench Press (Barbell)", group: "Chest" },
+  { name: "Decline Dumbbell Press", group: "Chest" },
+  { name: "Chest Fly (Cable)", group: "Chest" },
+  { name: "Chest Fly (Dumbbell)", group: "Chest" },
+  { name: "Incline Chest Fly (Dumbbell)", group: "Chest" },
+  { name: "Pec Deck (Machine)", group: "Chest" },
+  { name: "Cable Crossover", group: "Chest" },
+  { name: "Push-Up", group: "Chest" },
+  { name: "Wide Push-Up", group: "Chest" },
+  { name: "Diamond Push-Up", group: "Chest" },
+  { name: "Pike Push-Up", group: "Chest" },
+  { name: "Dips (Chest)", group: "Chest" },
+  { name: "Landmine Press", group: "Chest" },
+  // ── Back ──────────────────────────────────────────────────────────────
+  { name: "Deadlift (Conventional)", group: "Back" },
+  { name: "Deadlift (Barbell)", group: "Back" },
+  { name: "Rack Pull", group: "Back" },
+  { name: "Bent Over Row (Barbell)", group: "Back" },
+  { name: "Pendlay Row", group: "Back" },
+  { name: "Dumbbell Row (Single Arm)", group: "Back" },
+  { name: "T-Bar Row", group: "Back" },
+  { name: "Chest Supported Row (Machine)", group: "Back" },
+  { name: "Lat Pulldown (Wide Grip)", group: "Back" },
+  { name: "Lat Pulldown (Narrow Grip)", group: "Back" },
+  { name: "Lat Pulldown (Reverse Grip)", group: "Back" },
+  { name: "Lat Pulldown", group: "Back" },
+  { name: "Seated Cable Row", group: "Back" },
+  { name: "Cable Row (Close Grip)", group: "Back" },
+  { name: "Pull-Up", group: "Back" },
+  { name: "Chin-Up", group: "Back" },
+  { name: "Wide Grip Pull-Up", group: "Back" },
+  { name: "Assisted Pull-Up (Machine)", group: "Back" },
+  { name: "Shrug (Barbell)", group: "Back" },
+  { name: "Shrug (Dumbbell)", group: "Back" },
+  { name: "Back Extension", group: "Back" },
+  { name: "Meadows Row", group: "Back" },
+  // ── Shoulders ─────────────────────────────────────────────────────────
+  { name: "Overhead Press (Barbell)", group: "Shoulders" },
+  { name: "Overhead Press (Dumbbell)", group: "Shoulders" },
+  { name: "Overhead Press (Smith Machine)", group: "Shoulders" },
+  { name: "Shoulder Press (Machine)", group: "Shoulders" },
+  { name: "Arnold Press (Dumbbell)", group: "Shoulders" },
+  { name: "Lateral Raise (Dumbbell)", group: "Shoulders" },
+  { name: "Lateral Raise (Cable)", group: "Shoulders" },
+  { name: "Lateral Raise (Machine)", group: "Shoulders" },
+  { name: "Front Raise (Dumbbell)", group: "Shoulders" },
+  { name: "Front Raise (Barbell)", group: "Shoulders" },
+  { name: "Front Raise (Cable)", group: "Shoulders" },
+  { name: "Face Pull (Cable)", group: "Shoulders" },
+  { name: "Rear Delt Fly (Dumbbell)", group: "Shoulders" },
+  { name: "Rear Delt Fly (Cable)", group: "Shoulders" },
+  { name: "Rear Delt Fly (Machine)", group: "Shoulders" },
+  { name: "Upright Row (Barbell)", group: "Shoulders" },
+  { name: "Upright Row (Cable)", group: "Shoulders" },
+  { name: "Handstand Push-Up", group: "Shoulders" },
+  // ── Arms ──────────────────────────────────────────────────────────────
+  { name: "Barbell Curl", group: "Arms" },
+  { name: "EZ-Bar Curl", group: "Arms" },
+  { name: "Bicep Curl (Dumbbell)", group: "Arms" },
+  { name: "Alternating Dumbbell Curl", group: "Arms" },
+  { name: "Incline Dumbbell Curl", group: "Arms" },
+  { name: "Hammer Curl (Dumbbell)", group: "Arms" },
+  { name: "Preacher Curl (Barbell)", group: "Arms" },
+  { name: "Preacher Curl (Dumbbell)", group: "Arms" },
+  { name: "Preacher Curl (Cable)", group: "Arms" },
+  { name: "Concentration Curl", group: "Arms" },
+  { name: "Cable Curl", group: "Arms" },
+  { name: "Reverse Curl (Barbell)", group: "Arms" },
+  { name: "Tricep Pushdown (Cable)", group: "Arms" },
+  { name: "Tricep Pushdown (Rope)", group: "Arms" },
+  { name: "Overhead Tricep Extension (Dumbbell)", group: "Arms" },
+  { name: "Overhead Tricep Extension (Cable)", group: "Arms" },
+  { name: "Overhead Tricep Extension (Barbell)", group: "Arms" },
+  { name: "Skull Crusher (Barbell)", group: "Arms" },
+  { name: "Skull Crusher (Dumbbell)", group: "Arms" },
+  { name: "Skull Crusher (EZ-Bar)", group: "Arms" },
+  { name: "Close Grip Bench Press", group: "Arms" },
+  { name: "Tricep Dip", group: "Arms" },
+  { name: "Tricep Kickback (Dumbbell)", group: "Arms" },
+  { name: "Tricep Kickback (Cable)", group: "Arms" },
+  { name: "Wrist Curl", group: "Arms" },
+  { name: "Reverse Wrist Curl", group: "Arms" },
+  // ── Core ──────────────────────────────────────────────────────────────
+  { name: "Plank", group: "Core" },
+  { name: "Side Plank", group: "Core" },
+  { name: "Hollow Hold", group: "Core" },
+  { name: "Cable Crunch", group: "Core" },
+  { name: "Crunch", group: "Core" },
+  { name: "Bicycle Crunch", group: "Core" },
+  { name: "Reverse Crunch", group: "Core" },
+  { name: "Hanging Leg Raise", group: "Core" },
+  { name: "Leg Raise (Flat)", group: "Core" },
+  { name: "V-Up", group: "Core" },
+  { name: "Ab Wheel Rollout", group: "Core" },
+  { name: "Russian Twist", group: "Core" },
+  { name: "Dragon Flag", group: "Core" },
+  { name: "Mountain Climber", group: "Core" },
+  { name: "Pallof Press", group: "Core" },
+  { name: "Dead Bug", group: "Core" },
+  { name: "Windshield Wiper", group: "Core" },
+  // ── Cardio ────────────────────────────────────────────────────────────
+  { name: "Walking (Outdoor)", group: "Cardio" },
+  { name: "Walking (Treadmill)", group: "Cardio" },
+  { name: "Incline Walk (Treadmill)", group: "Cardio" },
+  { name: "Running (Treadmill)", group: "Cardio" },
+  { name: "Running (Outdoor)", group: "Cardio" },
+  { name: "Cycling (Stationary)", group: "Cardio" },
+  { name: "Rowing Machine", group: "Cardio" },
+  { name: "Elliptical", group: "Cardio" },
+  { name: "Jump Rope", group: "Cardio" },
+  { name: "Stairmaster", group: "Cardio" },
+  { name: "HIIT", group: "Cardio" },
+  { name: "Burpee", group: "Cardio" },
+  { name: "Box Jump", group: "Cardio" },
+  { name: "Battle Ropes", group: "Cardio" },
+  { name: "Swimming", group: "Cardio" },
+  // ── Full Body ─────────────────────────────────────────────────────────
+  { name: "Deadlift (Romanian, Barbell)", group: "Full Body" },
+  { name: "Clean and Press", group: "Full Body" },
+  { name: "Thruster (Barbell)", group: "Full Body" },
+  { name: "Thruster (Dumbbell)", group: "Full Body" },
+  { name: "Kettlebell Swing", group: "Full Body" },
+  { name: "Turkish Get-Up", group: "Full Body" },
+  { name: "Farmer's Walk", group: "Full Body" },
+  { name: "Sled Push", group: "Full Body" },
+  // ── Yoga ──────────────────────────────────────────────────────────────
+  { name: "Sun Salutation (Surya Namaskar)", group: "Yoga" },
+  { name: "Downward Dog", group: "Yoga" },
+  { name: "Warrior I", group: "Yoga" },
+  { name: "Warrior II", group: "Yoga" },
+  { name: "Warrior III", group: "Yoga" },
+  { name: "Tree Pose", group: "Yoga" },
+  { name: "Child's Pose", group: "Yoga" },
+  { name: "Pigeon Pose", group: "Yoga" },
+  { name: "Cat-Cow", group: "Yoga" },
+  { name: "Cobra Pose", group: "Yoga" },
+  { name: "Bridge Pose", group: "Yoga" },
+  { name: "Boat Pose", group: "Yoga" },
+  { name: "Chair Pose", group: "Yoga" },
+  { name: "Standing Forward Fold", group: "Yoga" },
+  { name: "Seated Forward Fold", group: "Yoga" },
+  { name: "Supine Twist", group: "Yoga" },
+];
+
+const SEED_FOODS = [
+  // ── Breads & Grains ───────────────────────────────────────────────────
+  { name: "Roti (wheat, medium)", unit: "1 pc", kcal: 120, p: 3.1, c: 18, f: 3.7, fiber: 1.9, iron: 1.0, calcium: 10, sodium: 95, potassium: 65 },
+  { name: "Roti (multigrain)", unit: "1 pc", kcal: 110, p: 3.5, c: 16, f: 3.5, fiber: 2.5, iron: 1.2, calcium: 15, sodium: 80, potassium: 90 },
+  { name: "Jowar Roti", unit: "1 pc", kcal: 95, p: 2.8, c: 20, f: 1, fiber: 2.4, iron: 1.4, calcium: 13, sodium: 5, potassium: 80 },
+  { name: "Bajra Roti", unit: "1 pc", kcal: 100, p: 3, c: 21, f: 1.2, fiber: 2.8, iron: 1.8, calcium: 14, sodium: 5, potassium: 100 },
+  { name: "Paratha (plain)", unit: "1 pc", kcal: 200, p: 4, c: 26, f: 9, fiber: 1.8, iron: 1.5, calcium: 20, sodium: 200, potassium: 80 },
+  { name: "Paratha (aloo)", unit: "1 pc", kcal: 250, p: 5, c: 32, f: 11, fiber: 2.5, iron: 1.8, calcium: 30, sodium: 280, potassium: 200 },
+  { name: "Paratha (gobi)", unit: "1 pc", kcal: 220, p: 4.5, c: 28, f: 10, fiber: 2.2, iron: 1.6, calcium: 40, sodium: 240, potassium: 180 },
+  { name: "Paratha (methi)", unit: "1 pc", kcal: 210, p: 5, c: 27, f: 9.5, fiber: 3, iron: 2, calcium: 60, sodium: 220, potassium: 200 },
+  { name: "Naan", unit: "1 pc", kcal: 260, p: 8, c: 45, f: 5, fiber: 1.5, iron: 2, calcium: 30, sodium: 420, potassium: 100 },
+  { name: "Puri", unit: "1 pc", kcal: 120, p: 2, c: 14, f: 6, fiber: 0.8, iron: 0.8, calcium: 8, sodium: 150, potassium: 50 },
+  { name: "Bhatura", unit: "1 pc", kcal: 210, p: 4, c: 30, f: 8, fiber: 1, iron: 1, calcium: 15, sodium: 280, potassium: 80 },
+  { name: "Rice (white, cooked)", unit: "1 cup", kcal: 205, p: 4.3, c: 45, f: 0.4, fiber: 0.6, iron: 0.4, calcium: 16, sodium: 2, potassium: 55 },
+  { name: "Rice (brown, cooked)", unit: "1 cup", kcal: 215, p: 5, c: 45, f: 1.8, fiber: 3.5, iron: 0.8, calcium: 20, sodium: 10, potassium: 84 },
+  { name: "Basmati Rice (cooked)", unit: "1 cup", kcal: 210, p: 4.5, c: 46, f: 0.4, fiber: 0.7, iron: 0.4, calcium: 14, sodium: 2, potassium: 55 },
+  { name: "Bread (white)", unit: "1 slice", kcal: 70, p: 2.3, c: 13, f: 1, fiber: 0.6, iron: 0.9, calcium: 30, sodium: 130, potassium: 35 },
+  { name: "Bread (brown/whole wheat)", unit: "1 slice", kcal: 65, p: 2.7, c: 11, f: 1, fiber: 1.9, iron: 0.9, calcium: 20, sodium: 120, potassium: 60 },
+  // ── Breakfast Dishes ──────────────────────────────────────────────────
+  { name: "Idli", unit: "1 pc", kcal: 40, p: 1.3, c: 8, f: 0.2, fiber: 0.5, iron: 0.3, calcium: 5, sodium: 60, potassium: 30 },
+  { name: "Dosa (plain)", unit: "1 pc", kcal: 140, p: 4, c: 26, f: 2.5, fiber: 1, iron: 0.8, calcium: 20, sodium: 180, potassium: 90 },
+  { name: "Masala Dosa", unit: "1 pc", kcal: 230, p: 5.5, c: 34, f: 8, fiber: 2.5, iron: 1.5, calcium: 40, sodium: 350, potassium: 300 },
+  { name: "Medu Vada", unit: "1 pc", kcal: 100, p: 3, c: 12, f: 5, fiber: 1.5, iron: 1, calcium: 15, sodium: 250, potassium: 80 },
+  { name: "Uttapam", unit: "1 pc", kcal: 180, p: 5, c: 28, f: 6, fiber: 2, iron: 1, calcium: 30, sodium: 280, potassium: 150 },
+  { name: "Poha", unit: "1 cup", kcal: 250, p: 5, c: 42, f: 7, fiber: 2, iron: 1.5, calcium: 20, sodium: 350, potassium: 150 },
+  { name: "Upma", unit: "1 cup", kcal: 200, p: 5, c: 30, f: 7, fiber: 2, iron: 1, calcium: 25, sodium: 400, potassium: 120 },
+  { name: "Besan Chilla", unit: "1 pc", kcal: 130, p: 7, c: 18, f: 4, fiber: 3, iron: 2, calcium: 30, sodium: 200, potassium: 150 },
+  { name: "Oats (plain, cooked)", unit: "1 cup", kcal: 158, p: 6, c: 27, f: 3.5, fiber: 4, iron: 2, calcium: 20, sodium: 10, potassium: 143 },
+  { name: "Masala Oats", unit: "1 cup", kcal: 180, p: 6.5, c: 30, f: 4.5, fiber: 4.5, iron: 2.2, calcium: 40, sodium: 350, potassium: 180 },
+  { name: "Cornflakes", unit: "1 cup (30g)", kcal: 110, p: 2, c: 25, f: 0.5, fiber: 0.5, iron: 1.8, calcium: 5, sodium: 200, potassium: 45 },
+  { name: "Muesli", unit: "½ cup (50g)", kcal: 190, p: 5, c: 34, f: 5, fiber: 4, iron: 2.5, calcium: 40, sodium: 60, potassium: 200 },
+  // ── Dal & Legumes ─────────────────────────────────────────────────────
+  { name: "Dal (toor/arhar)", unit: "1 cup", kcal: 200, p: 14, c: 33, f: 3, fiber: 8, iron: 3.3, calcium: 40, sodium: 8, potassium: 480 },
+  { name: "Dal (moong, yellow)", unit: "1 cup", kcal: 180, p: 13, c: 30, f: 1.5, fiber: 7, iron: 2.8, calcium: 35, sodium: 5, potassium: 400 },
+  { name: "Dal (masoor, red lentil)", unit: "1 cup", kcal: 195, p: 15, c: 32, f: 1.5, fiber: 7.5, iron: 4, calcium: 40, sodium: 5, potassium: 450 },
+  { name: "Chana Dal", unit: "1 cup", kcal: 220, p: 13, c: 36, f: 3.5, fiber: 9, iron: 3, calcium: 50, sodium: 10, potassium: 400 },
+  { name: "Rajma (kidney beans)", unit: "1 cup", kcal: 230, p: 15, c: 40, f: 1, fiber: 11, iron: 4, calcium: 60, sodium: 10, potassium: 600 },
+  { name: "Chole (chickpea curry)", unit: "1 cup", kcal: 240, p: 12, c: 38, f: 7, fiber: 10, iron: 4.5, calcium: 80, sodium: 500, potassium: 450 },
+  { name: "Moong Dal Khichdi", unit: "1 cup", kcal: 220, p: 10, c: 38, f: 4, fiber: 4, iron: 2.5, calcium: 45, sodium: 280, potassium: 220 },
+  { name: "Sprouts (moong, raw)", unit: "1 cup", kcal: 30, p: 3, c: 6, f: 0.2, fiber: 2, iron: 0.8, calcium: 14, sodium: 5, potassium: 77 },
+  // ── Vegetable Dishes ──────────────────────────────────────────────────
+  { name: "Mixed Veg Sabji", unit: "1 cup", kcal: 150, p: 4, c: 18, f: 7, fiber: 4, iron: 1.2, calcium: 50, sodium: 300, potassium: 400 },
+  { name: "Aloo Gobi", unit: "1 cup", kcal: 180, p: 4, c: 22, f: 8, fiber: 4, iron: 1.5, calcium: 40, sodium: 350, potassium: 350 },
+  { name: "Aloo Matar", unit: "1 cup", kcal: 200, p: 5, c: 25, f: 9, fiber: 4.5, iron: 1.8, calcium: 45, sodium: 380, potassium: 420 },
+  { name: "Bhindi Masala (Okra)", unit: "1 cup", kcal: 120, p: 3, c: 14, f: 6, fiber: 4, iron: 0.7, calcium: 70, sodium: 280, potassium: 300 },
+  { name: "Baingan Bharta", unit: "1 cup", kcal: 130, p: 3.5, c: 12, f: 8, fiber: 4, iron: 0.8, calcium: 35, sodium: 320, potassium: 350 },
+  { name: "Palak Sabji", unit: "1 cup", kcal: 100, p: 5, c: 10, f: 5, fiber: 4, iron: 3.5, calcium: 200, sodium: 300, potassium: 500 },
+  { name: "Palak Paneer", unit: "1 cup", kcal: 280, p: 16, c: 10, f: 20, fiber: 2.5, iron: 3, calcium: 320, sodium: 450, potassium: 400 },
+  { name: "Paneer Sabji", unit: "1 cup", kcal: 300, p: 18, c: 10, f: 20, fiber: 1, iron: 0.5, calcium: 300, sodium: 400, potassium: 150 },
+  { name: "Paneer Bhurji", unit: "1 cup", kcal: 310, p: 20, c: 8, f: 22, fiber: 1, iron: 1, calcium: 320, sodium: 450, potassium: 200 },
+  { name: "Paneer Tikka", unit: "6 pcs", kcal: 280, p: 18, c: 8, f: 20, fiber: 1, iron: 0.5, calcium: 280, sodium: 500, potassium: 150 },
+  { name: "Kadhi (with pakoda)", unit: "1 cup", kcal: 200, p: 7, c: 18, f: 12, fiber: 2, iron: 1.2, calcium: 200, sodium: 600, potassium: 250 },
+  { name: "Sambar", unit: "1 cup", kcal: 130, p: 6, c: 20, f: 3, fiber: 5, iron: 1.5, calcium: 30, sodium: 400, potassium: 300 },
+  { name: "Methi Sabji", unit: "1 cup", kcal: 110, p: 4, c: 12, f: 6, fiber: 4, iron: 2.5, calcium: 80, sodium: 250, potassium: 350 },
+  // ── Rice Dishes ───────────────────────────────────────────────────────
+  { name: "Chicken Biryani", unit: "1 cup", kcal: 350, p: 20, c: 42, f: 11, fiber: 1.5, iron: 2, calcium: 40, sodium: 600, potassium: 300 },
+  { name: "Veg Biryani", unit: "1 cup", kcal: 280, p: 7, c: 46, f: 8, fiber: 3, iron: 1.5, calcium: 50, sodium: 500, potassium: 250 },
+  { name: "Curd Rice", unit: "1 cup", kcal: 220, p: 7, c: 38, f: 6, fiber: 0.5, iron: 0.4, calcium: 200, sodium: 350, potassium: 300 },
+  { name: "Fried Rice (veg)", unit: "1 cup", kcal: 280, p: 6, c: 44, f: 9, fiber: 2, iron: 1, calcium: 30, sodium: 700, potassium: 200 },
+  { name: "Pulao (veg)", unit: "1 cup", kcal: 260, p: 6, c: 42, f: 8, fiber: 2.5, iron: 1.2, calcium: 35, sodium: 400, potassium: 200 },
+  // ── Non-Veg Dishes ────────────────────────────────────────────────────
+  { name: "Chicken Curry", unit: "1 cup", kcal: 280, p: 25, c: 8, f: 17, fiber: 1, iron: 1.5, calcium: 30, sodium: 500, potassium: 350 },
+  { name: "Chicken Tikka Masala", unit: "1 cup", kcal: 300, p: 26, c: 12, f: 18, fiber: 1.5, iron: 1.8, calcium: 50, sodium: 600, potassium: 400 },
+  { name: "Chicken Tikka (grilled)", unit: "6 pcs", kcal: 230, p: 30, c: 6, f: 10, fiber: 1, iron: 1.5, calcium: 20, sodium: 700, potassium: 350 },
+  { name: "Grilled Chicken Breast", unit: "100g", kcal: 165, p: 31, c: 0, f: 3.6, fiber: 0, iron: 1, calcium: 15, sodium: 74, potassium: 256 },
+  { name: "Mutton Curry", unit: "1 cup", kcal: 350, p: 28, c: 6, f: 24, fiber: 0.5, iron: 3, calcium: 30, sodium: 600, potassium: 380 },
+  { name: "Fish Curry", unit: "1 cup", kcal: 230, p: 22, c: 8, f: 13, fiber: 1, iron: 1.2, calcium: 50, sodium: 550, potassium: 400 },
+  { name: "Grilled Fish", unit: "100g", kcal: 130, p: 22, c: 0, f: 4, fiber: 0, iron: 0.8, calcium: 30, sodium: 60, potassium: 350 },
+  { name: "Boiled Egg (whole)", unit: "1 pc", kcal: 78, p: 6, c: 0.6, f: 5, fiber: 0, iron: 0.9, calcium: 25, sodium: 62, potassium: 63 },
+  { name: "Boiled Egg White", unit: "1 pc", kcal: 17, p: 3.6, c: 0.2, f: 0, fiber: 0, iron: 0.03, calcium: 2, sodium: 55, potassium: 54 },
+  { name: "Egg Omelette (2 eggs)", unit: "1 pc", kcal: 185, p: 13, c: 1, f: 14, fiber: 0, iron: 1.8, calcium: 50, sodium: 200, potassium: 140 },
+  { name: "Scrambled Eggs (2 eggs)", unit: "1 serving", kcal: 182, p: 13, c: 2, f: 14, fiber: 0, iron: 1.8, calcium: 55, sodium: 210, potassium: 140 },
+  { name: "Egg Bhurji", unit: "1 cup", kcal: 200, p: 14, c: 5, f: 14, fiber: 1, iron: 2, calcium: 60, sodium: 350, potassium: 180 },
+  // ── Snacks & Street Food ──────────────────────────────────────────────
+  { name: "Samosa", unit: "1 pc", kcal: 260, p: 4, c: 28, f: 15, fiber: 2, iron: 1.5, calcium: 20, sodium: 400, potassium: 150 },
+  { name: "Kachori", unit: "1 pc", kcal: 200, p: 5, c: 22, f: 11, fiber: 2.5, iron: 1.2, calcium: 25, sodium: 320, potassium: 120 },
+  { name: "Dhokla", unit: "2 pcs", kcal: 100, p: 5, c: 15, f: 3, fiber: 2, iron: 1, calcium: 40, sodium: 350, potassium: 90 },
+  { name: "Pav Bhaji (1 pav + bhaji)", unit: "1 serving", kcal: 380, p: 10, c: 52, f: 15, fiber: 4, iron: 2.5, calcium: 80, sodium: 800, potassium: 450 },
+  { name: "Vada Pav", unit: "1 pc", kcal: 300, p: 6, c: 40, f: 14, fiber: 2, iron: 2, calcium: 40, sodium: 600, potassium: 200 },
+  { name: "Bhel Puri", unit: "1 cup", kcal: 180, p: 5, c: 30, f: 6, fiber: 2, iron: 2, calcium: 30, sodium: 600, potassium: 180 },
+  { name: "Chana (roasted)", unit: "¼ cup", kcal: 120, p: 6, c: 18, f: 3, fiber: 6, iron: 2, calcium: 35, sodium: 5, potassium: 200 },
+  { name: "Makhana (fox nuts)", unit: "1 cup (30g)", kcal: 107, p: 3.8, c: 20, f: 0.9, fiber: 0.7, iron: 1.3, calcium: 35, sodium: 5, potassium: 50 },
+  { name: "Peanuts (roasted)", unit: "¼ cup", kcal: 207, p: 9, c: 7, f: 18, fiber: 3, iron: 1.3, calcium: 30, sodium: 115, potassium: 245 },
+  { name: "Momos (veg, steamed)", unit: "6 pcs", kcal: 160, p: 6, c: 28, f: 3, fiber: 2, iron: 1, calcium: 25, sodium: 400, potassium: 100 },
+  // ── Dairy ─────────────────────────────────────────────────────────────
+  { name: "Milk (full fat)", unit: "1 cup (250ml)", kcal: 150, p: 8, c: 12, f: 8, fiber: 0, iron: 0.1, calcium: 280, sodium: 105, potassium: 350 },
+  { name: "Milk (toned/low fat)", unit: "1 cup (250ml)", kcal: 100, p: 8, c: 12, f: 3, fiber: 0, iron: 0.1, calcium: 280, sodium: 105, potassium: 350 },
+  { name: "Curd / Dahi", unit: "1 cup", kcal: 150, p: 8, c: 11, f: 8, fiber: 0, iron: 0.1, calcium: 300, sodium: 100, potassium: 380 },
+  { name: "Greek Yogurt", unit: "1 cup", kcal: 130, p: 17, c: 9, f: 4, fiber: 0, iron: 0.1, calcium: 200, sodium: 90, potassium: 240 },
+  { name: "Paneer (raw)", unit: "100g", kcal: 265, p: 18, c: 4, f: 20, fiber: 0, iron: 0.4, calcium: 480, sodium: 50, potassium: 90 },
+  { name: "Ghee", unit: "1 tsp", kcal: 45, p: 0, c: 0, f: 5, fiber: 0, iron: 0, calcium: 0, sodium: 0, potassium: 0 },
+  { name: "Butter", unit: "1 tsp", kcal: 36, p: 0, c: 0, f: 4, fiber: 0, iron: 0, calcium: 2, sodium: 30, potassium: 1 },
+  { name: "Buttermilk / Chaas", unit: "1 cup", kcal: 60, p: 4, c: 7, f: 2, fiber: 0, iron: 0.1, calcium: 150, sodium: 250, potassium: 200 },
+  { name: "Lassi (sweet)", unit: "1 glass (300ml)", kcal: 220, p: 8, c: 35, f: 7, fiber: 0, iron: 0.1, calcium: 280, sodium: 100, potassium: 380 },
+  { name: "Whey Protein Scoop", unit: "1 scoop (30g)", kcal: 120, p: 24, c: 3, f: 1.5, fiber: 0, iron: 0.5, calcium: 100, sodium: 50, potassium: 170 },
+  // ── Nuts, Seeds & Healthy Fats ────────────────────────────────────────
+  { name: "Almonds", unit: "10 pcs", kcal: 70, p: 2.6, c: 2.5, f: 6, fiber: 1.5, iron: 0.5, calcium: 30, sodium: 0, potassium: 90 },
+  { name: "Walnuts", unit: "5 halves", kcal: 87, p: 2, c: 1.8, f: 8.7, fiber: 0.9, iron: 0.4, calcium: 14, sodium: 0, potassium: 65 },
+  { name: "Cashews", unit: "10 pcs", kcal: 90, p: 2.5, c: 5, f: 7, fiber: 0.5, iron: 1, calcium: 7, sodium: 2, potassium: 90 },
+  { name: "Pistachios", unit: "20 pcs", kcal: 80, p: 3, c: 4, f: 6.5, fiber: 1.5, iron: 0.6, calcium: 15, sodium: 0, potassium: 125 },
+  { name: "Peanut Butter", unit: "2 tbsp", kcal: 190, p: 8, c: 7, f: 16, fiber: 1.5, iron: 0.6, calcium: 17, sodium: 140, potassium: 200 },
+  { name: "Flaxseeds", unit: "1 tbsp", kcal: 55, p: 1.9, c: 3, f: 4.3, fiber: 2.8, iron: 0.6, calcium: 26, sodium: 3, potassium: 84 },
+  { name: "Chia Seeds", unit: "1 tbsp", kcal: 58, p: 2, c: 5, f: 3.7, fiber: 4, iron: 1, calcium: 90, sodium: 1, potassium: 40 },
+  // ── Fruits ────────────────────────────────────────────────────────────
+  { name: "Banana", unit: "1 medium", kcal: 105, p: 1.3, c: 27, f: 0.4, fiber: 3.1, iron: 0.3, calcium: 6, sodium: 1, potassium: 422 },
+  { name: "Apple", unit: "1 medium", kcal: 95, p: 0.5, c: 25, f: 0.3, fiber: 4.4, iron: 0.2, calcium: 11, sodium: 2, potassium: 195 },
+  { name: "Mango", unit: "1 cup (165g)", kcal: 99, p: 1.4, c: 25, f: 0.6, fiber: 2.6, iron: 0.2, calcium: 18, sodium: 2, potassium: 277 },
+  { name: "Papaya", unit: "1 cup (145g)", kcal: 62, p: 0.7, c: 16, f: 0.4, fiber: 2.5, iron: 0.1, calcium: 29, sodium: 12, potassium: 264 },
+  { name: "Watermelon", unit: "2 cups (280g)", kcal: 85, p: 1.7, c: 21, f: 0.4, fiber: 1.1, iron: 0.4, calcium: 20, sodium: 5, potassium: 320 },
+  { name: "Orange", unit: "1 medium", kcal: 62, p: 1.2, c: 15, f: 0.2, fiber: 3.1, iron: 0.1, calcium: 52, sodium: 0, potassium: 237 },
+  { name: "Pomegranate", unit: "½ cup (87g)", kcal: 72, p: 1.5, c: 16, f: 1, fiber: 3.5, iron: 0.3, calcium: 9, sodium: 3, potassium: 205 },
+  { name: "Grapes", unit: "1 cup (150g)", kcal: 104, p: 1.1, c: 27, f: 0.2, fiber: 1.4, iron: 0.5, calcium: 15, sodium: 3, potassium: 288 },
+  { name: "Guava", unit: "1 medium", kcal: 68, p: 2.5, c: 14, f: 1, fiber: 5.4, iron: 0.3, calcium: 20, sodium: 2, potassium: 418 },
+  { name: "Pineapple", unit: "1 cup (165g)", kcal: 82, p: 0.9, c: 22, f: 0.2, fiber: 2.3, iron: 0.5, calcium: 21, sodium: 2, potassium: 180 },
+  { name: "Kiwi", unit: "1 medium", kcal: 42, p: 0.8, c: 10, f: 0.4, fiber: 2.1, iron: 0.2, calcium: 23, sodium: 2, potassium: 215 },
+  { name: "Strawberry", unit: "1 cup (152g)", kcal: 49, p: 1, c: 12, f: 0.5, fiber: 3, iron: 0.6, calcium: 24, sodium: 1, potassium: 220 },
+  // ── Beverages ─────────────────────────────────────────────────────────
+  { name: "Chai (with milk & sugar)", unit: "1 cup (200ml)", kcal: 80, p: 2.5, c: 12, f: 2.5, fiber: 0, iron: 0.1, calcium: 80, sodium: 30, potassium: 100 },
+  { name: "Black Coffee", unit: "1 cup", kcal: 5, p: 0.3, c: 0, f: 0, fiber: 0, iron: 0.1, calcium: 5, sodium: 5, potassium: 115 },
+  { name: "Coffee (with milk)", unit: "1 cup (200ml)", kcal: 60, p: 3, c: 8, f: 2, fiber: 0, iron: 0.1, calcium: 90, sodium: 30, potassium: 130 },
+  { name: "Green Tea", unit: "1 cup", kcal: 2, p: 0.2, c: 0.5, f: 0, fiber: 0, iron: 0.1, calcium: 2, sodium: 2, potassium: 20 },
+  { name: "Coconut Water", unit: "1 cup (240ml)", kcal: 46, p: 2, c: 9, f: 0.5, fiber: 2.6, iron: 0.1, calcium: 60, sodium: 252, potassium: 600 },
+  { name: "Nimbu Pani (Fresh Lime Water)", unit: "1 glass", kcal: 30, p: 0.3, c: 8, f: 0, fiber: 0.1, iron: 0.1, calcium: 10, sodium: 5, potassium: 50 },
+  // ── Other Common Items ────────────────────────────────────────────────
+  { name: "Honey", unit: "1 tbsp", kcal: 64, p: 0.1, c: 17, f: 0, fiber: 0, iron: 0.1, calcium: 1, sodium: 1, potassium: 11 },
+  { name: "Dark Chocolate (70%+)", unit: "30g", kcal: 170, p: 2.5, c: 13, f: 12, fiber: 3, iron: 3.4, calcium: 20, sodium: 5, potassium: 200 },
+  { name: "Peanuts (boiled)", unit: "¼ cup", kcal: 170, p: 7, c: 12, f: 12, fiber: 3, iron: 1, calcium: 25, sodium: 5, potassium: 200 },
+  { name: "Tofu", unit: "100g", kcal: 76, p: 8, c: 1.9, f: 4.8, fiber: 0.3, iron: 1.8, calcium: 350, sodium: 7, potassium: 121 },
+  // ── More Rotis & Flatbreads ───────────────────────────────────────────
+  { name: "Ragi Roti", unit: "1 pc", kcal: 90, p: 3.5, c: 18, f: 0.8, fiber: 2.8, iron: 3.9, calcium: 120, sodium: 5, potassium: 95 },
+  { name: "Parotta (Kerala/Malabar)", unit: "1 pc", kcal: 300, p: 6, c: 40, f: 13, fiber: 1.5, iron: 1.5, calcium: 20, sodium: 350, potassium: 80 },
+  // ── Karnataka / Regional Specials ────────────────────────────────────
+  { name: "Avarekalu Saaru (Hyacinth Bean Curry)", unit: "1 cup", kcal: 160, p: 9, c: 24, f: 4, fiber: 7, iron: 2.5, calcium: 50, sodium: 350, potassium: 400 },
+  { name: "Avarekalu (boiled)", unit: "1 cup", kcal: 130, p: 10, c: 20, f: 1, fiber: 8, iron: 2.5, calcium: 45, sodium: 5, potassium: 380 },
+  { name: "Red Amaranth Sabji (Lal Math)", unit: "1 cup", kcal: 80, p: 5, c: 10, f: 3, fiber: 4, iron: 3.8, calcium: 220, sodium: 200, potassium: 500 },
+  { name: "Aloo Bhaji (Dry)", unit: "1 cup", kcal: 190, p: 4, c: 28, f: 8, fiber: 3.5, iron: 1.5, calcium: 25, sodium: 320, potassium: 350 },
+  // ── Street Food & Snacks ─────────────────────────────────────────────
+  { name: "Mirchi Bhaji / Fried Green Chilli", unit: "1 pc", kcal: 130, p: 2, c: 14, f: 7, fiber: 1.5, iron: 0.5, calcium: 20, sodium: 250, potassium: 80 },
+  { name: "Maggi Masala Noodles", unit: "1 pack (70g)", kcal: 303, p: 6.6, c: 43, f: 12, fiber: 1.5, iron: 1, calcium: 10, sodium: 800, potassium: 100 },
+  { name: "Instant Noodles (cooked)", unit: "1 serving", kcal: 350, p: 7, c: 50, f: 14, fiber: 2, iron: 1.2, calcium: 15, sodium: 900, potassium: 120 },
+  // ── Non-Veg additions ─────────────────────────────────────────────────
+  { name: "Boiled Chicken Breast", unit: "100g", kcal: 150, p: 30, c: 0, f: 3, fiber: 0, iron: 0.9, calcium: 14, sodium: 75, potassium: 250 },
+  { name: "Mutton (boneless, cooked)", unit: "100g", kcal: 294, p: 25, c: 0, f: 21, fiber: 0, iron: 2.7, calcium: 13, sodium: 72, potassium: 290 },
+  { name: "Fish (Pomfret, fried)", unit: "1 pc (100g)", kcal: 175, p: 19, c: 5, f: 9, fiber: 0, iron: 1.2, calcium: 40, sodium: 350, potassium: 300 },
+  { name: "Fish (Rohu, cooked)", unit: "100g", kcal: 97, p: 17, c: 0, f: 3, fiber: 0, iron: 1, calcium: 30, sodium: 62, potassium: 280 },
+  { name: "Fish (Tilapia, grilled)", unit: "100g", kcal: 128, p: 26, c: 0, f: 2.7, fiber: 0, iron: 0.7, calcium: 14, sodium: 56, potassium: 302 },
+  // ── Sweets & Mithai ───────────────────────────────────────────────────
+  { name: "Gulab Jamun", unit: "1 pc", kcal: 150, p: 2.5, c: 28, f: 5, fiber: 0.2, iron: 0.3, calcium: 40, sodium: 60, potassium: 50 },
+  { name: "Rasgulla", unit: "1 pc", kcal: 110, p: 2.5, c: 22, f: 2, fiber: 0, iron: 0.1, calcium: 60, sodium: 35, potassium: 40 },
+  { name: "Kheer (Rice Pudding)", unit: "1 cup", kcal: 280, p: 8, c: 45, f: 8, fiber: 0.5, iron: 0.3, calcium: 250, sodium: 80, potassium: 280 },
+  { name: "Sooji Halwa", unit: "1 cup", kcal: 380, p: 6, c: 55, f: 15, fiber: 1.5, iron: 1.5, calcium: 30, sodium: 120, potassium: 120 },
+  { name: "Jalebi", unit: "2 pcs (50g)", kcal: 150, p: 1.5, c: 30, f: 4, fiber: 0.5, iron: 0.5, calcium: 20, sodium: 40, potassium: 40 },
+  { name: "Besan Ladoo", unit: "1 pc (40g)", kcal: 195, p: 4.5, c: 25, f: 9, fiber: 2, iron: 1.5, calcium: 35, sodium: 30, potassium: 130 },
+  { name: "Coconut Ladoo", unit: "1 pc (35g)", kcal: 165, p: 2, c: 22, f: 8, fiber: 2.5, iron: 0.5, calcium: 15, sodium: 25, potassium: 120 },
+  { name: "Motichoor Ladoo", unit: "1 pc (40g)", kcal: 185, p: 3, c: 28, f: 7, fiber: 0.5, iron: 0.8, calcium: 25, sodium: 40, potassium: 70 },
+  { name: "Til (Sesame) Ladoo", unit: "1 pc (30g)", kcal: 160, p: 4, c: 18, f: 9, fiber: 2, iron: 4.5, calcium: 200, sodium: 10, potassium: 110 },
+  { name: "Ragi Ladoo", unit: "1 pc (35g)", kcal: 150, p: 3.5, c: 22, f: 6, fiber: 2.5, iron: 3.5, calcium: 100, sodium: 20, potassium: 120 },
+  { name: "Barfi (milk/khoya)", unit: "1 pc (40g)", kcal: 175, p: 5, c: 24, f: 7.5, fiber: 0, iron: 0.2, calcium: 120, sodium: 45, potassium: 150 },
+  // ── Modak & Festival Sweets ───────────────────────────────────────────
+  { name: "Ukadiche Modak (steamed)", unit: "1 pc", kcal: 120, p: 2.5, c: 20, f: 4, fiber: 1.5, iron: 0.8, calcium: 15, sodium: 30, potassium: 80 },
+  { name: "Fried Modak (Karanji)", unit: "1 pc", kcal: 180, p: 3, c: 24, f: 8, fiber: 1, iron: 0.5, calcium: 20, sodium: 40, potassium: 70 },
+  { name: "Karanji / Gujiya", unit: "1 pc", kcal: 195, p: 3.5, c: 26, f: 9, fiber: 1.5, iron: 0.8, calcium: 25, sodium: 45, potassium: 80 },
+  // ── Black Beans & Legumes ─────────────────────────────────────────────
+  { name: "Black Beans (cooked)", unit: "1 cup", kcal: 230, p: 15, c: 41, f: 0.9, fiber: 15, iron: 3.6, calcium: 46, sodium: 5, potassium: 611 },
+  { name: "Black Chana (kala chana, cooked)", unit: "1 cup", kcal: 210, p: 14, c: 34, f: 4, fiber: 10, iron: 5, calcium: 80, sodium: 10, potassium: 450 },
+  { name: "Urad Dal (black, cooked)", unit: "1 cup", kcal: 240, p: 17, c: 38, f: 2, fiber: 8, iron: 3.5, calcium: 40, sodium: 8, potassium: 420 },
+  { name: "Dal Makhani", unit: "1 cup", kcal: 280, p: 14, c: 38, f: 9, fiber: 9, iron: 4, calcium: 90, sodium: 550, potassium: 500 },
+];
+
+const MICRO_TARGETS = { fiber: 30, iron: 8, calcium: 1000, sodium: 2300, potassium: 3500 }; // fallback only
+function personalizedTargets(profile, caloTarget) {
+  const wt = Number(profile.weight) || 70;
+  const age = Number(profile.age) || 30;
+  const sex = profile.sex || "male";
+  return {
+    // Macros
+    protein: Math.round(1.6 * wt),                          // 1.6g/kg for weight-loss muscle preservation
+    carbs:   Math.round(caloTarget * 0.40 / 4),
+    fat:     Math.round(caloTarget * 0.30 / 9),
+    // Micros — IOM/ICMR reference values
+    fiber:     Math.max(20, Math.round(caloTarget / 1000 * 14)), // 14g per 1000 kcal
+    iron:      sex === "male" ? 8 : (age >= 50 ? 8 : 18),        // women pre-50 need 18mg
+    calcium:   (age >= 71 || (sex === "female" && age >= 51)) ? 1200 : 1000,
+    sodium:    2300,                                              // upper limit, same for all
+    potassium: sex === "male" ? 3400 : 2600,
+  };
+}
+const MICRO_UNITS = { fiber: "g", iron: "mg", calcium: "mg", sodium: "mg", potassium: "mg" };
+const MICRO_LABELS = { fiber: "Fiber", iron: "Iron", calcium: "Calcium", sodium: "Sodium", potassium: "Potassium" };
+
+const WEIGHT_HISTORY = [
+  { d: "Jul 20", w: 90.2 }, { d: "Jul 27", w: 89.8 }, { d: "Aug 3", w: 89.5 },
+  { d: "Aug 10", w: 89.1 }, { d: "Aug 17", w: 88.9 }, { d: "Aug 24", w: 88.6 },
+  { d: "Aug 31", w: 88.4 }, { d: "Sep 7", w: 88.1 },
+];
+
+const RAW_HEVY_TEXT = `Wednesday workout
+Thursday, Sep 10, 2026 at 7:49am
+Lateral Leg Raises
+Set 1: 20 reps
+Leg Press (Machine)
+Set 1: 100 kg x 12
+Set 2: 120 kg x 11
+Set 3: 120 kg x 10
+Seated Leg Curl (Machine)
+Set 1: 70 kg x 12
+Set 2: 70 kg x 12
+Set 3: 70 kg x 12
+Lunge
+Set 1: 28 reps
+Set 2: 28 reps
+Set 3: 28 reps
+Romanian Deadlift (Dumbbell)
+Set 1: 0 kg x 12
+Set 2: 0 kg x 12
+Set 3: 0 kg x 12
+Arnold Press (Dumbbell)
+Set 1: 15 kg x 12
+Set 2: 15 kg x 11
+Set 3: 15 kg x 7
+Lateral Raise (Cable)
+Set 1: 2.5 kg x 12
+Set 2: 2.5 kg x 12
+Set 3: 2.5 kg x 12
+@hevyapp
+https://hevy.com/workout/ND0MqYhikeI`;
+
+function parseHevyText(text) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const skip = (l) =>
+    /@|hevy\.com|https?:\/\//i.test(l) ||
+    /\d{1,2}:\d{2}\s*(am|pm)/i.test(l) ||
+    /^(mon|tue|wed|thu|fri|sat|sun).*workout/i.test(l);
+  const setRe = /^Set\s*\d+:\s*(?:([\d.]+)\s*kg\s*x\s*(\d+)|(\d+)\s*reps)/i;
+  const exercises = [];
+  let current = null;
+  for (const line of lines) {
+    if (skip(line)) continue;
+    const m = line.match(setRe);
+    if (m && current) {
+      if (m[1] !== undefined) current.sets.push({ weight: parseFloat(m[1]), reps: parseInt(m[2]) });
+      else current.sets.push({ weight: 0, reps: parseInt(m[3]) });
+    } else if (!m) {
+      current = { name: line, sets: [] };
+      exercises.push(current);
+    }
+  }
+  return exercises.filter((e) => e.sets.length);
+}
+
+function groupFor(name, db) {
+  const hit = db.find((e) => e.name === name);
+  return hit ? hit.group : "Other";
+}
+
+function bmr({ weight, height, age, sex }) {
+  const w = Number(weight) || 0, h = Number(height) || 0, a = Number(age) || 0;
+  const base = 10 * w + 6.25 * h - 5 * a;
+  return sex === "male" ? base + 5 : base - 161;
+}
+const ACTIVITY = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725 };
+
+function safeDeficitPlan(profile) {
+  const b = bmr(profile);
+  const tdee = b * ACTIVITY[profile.activity];
+  const maxDeficit = Math.min(750, tdee * 0.25);
+  const target = Math.round(tdee - maxDeficit);
+  const floor = profile.sex === "male" ? 1500 : 1200;
+  const safeTarget = Math.max(target, floor);
+  const weeklyLossKg = ((tdee - safeTarget) * 7) / 7700;
+  const toLose = (Number(profile.weight) || 0) - (Number(profile.goalWeight) || 0);
+  const weeks = weeklyLossKg > 0 ? Math.ceil(toLose / weeklyLossKg) : null;
+  return { bmr: Math.round(b), tdee: Math.round(tdee), target: safeTarget, weeklyLossKg, weeks };
+}
+
+/* ---------- UI atoms ---------- */
+const Card = ({ children, style, glow }) => (
+  <div className="card-enter" style={{
+    background: T.cardGlass,
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+    border: `1px solid ${T.border}`,
+    borderRadius: 18,
+    padding: 16,
+    ...(glow ? { animation: "pulse-glow 3s ease-in-out infinite" } : {}),
+    ...style
+  }}>{children}</div>
+);
+const Label = ({ children, size = 11 }) => (
+  <div style={{ fontSize: size, color: T.soft, marginBottom: 4, fontFamily: T.sans, letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600 }}>{children}</div>
+);
+const Num = ({ children, size = 20, color = T.ink }) => (
+  <span style={{ fontFamily: T.mono, fontSize: size, color, fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{children}</span>
+);
+const GradText = ({ children, style }) => (
+  <span style={{ background: T.gradAccent, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", ...style }}>{children}</span>
+);
+const inputStyle = {
+  border: `1px solid rgba(255,255,255,0.12)`,
+  borderRadius: 10,
+  padding: "9px 12px",
+  fontFamily: T.sans,
+  fontSize: 13,
+  background: "rgba(255,255,255,0.06)",
+  color: T.ink,
+};
+const selectStyle = { ...inputStyle, width: "100%", marginBottom: 8 };
+const btnStyle = {
+  background: T.gradAccent,
+  color: "#fff",
+  border: "none",
+  borderRadius: 10,
+  padding: "10px 16px",
+  fontSize: 13,
+  marginTop: 8,
+  cursor: "pointer",
+  fontWeight: 700,
+  letterSpacing: "0.02em",
+};
+
+/* ---------- lightweight inline charts (no external chart library) ---------- */
+function RadialProgress({ pct, size = 108, stroke = 11, color }) {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, offset = c - (Math.min(100, pct) / 100) * c;
+  const grad = color || T.accent;
+  return (
+    <svg width={size} height={size} style={{ filter: `drop-shadow(0 0 8px ${typeof grad === "string" && grad.startsWith("#") ? grad : T.accent}55)` }}>
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#FF6B35" />
+          <stop offset="100%" stopColor="#B14FFF" />
+        </linearGradient>
+      </defs>
+      <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.07)" strokeWidth={stroke} fill="none" />
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={color || "url(#ringGrad)"} strokeWidth={stroke} fill="none"
+        strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+    </svg>
+  );
+}
+function WeightTrendChart({ data }) {
+  const w = 320, h = 140, pad = 28;
+  const vals = data.map((d) => d.w);
+  const min = Math.min(...vals) - 0.5, max = Math.max(...vals) + 0.5;
+  const x = (i) => pad + (i / (data.length - 1)) * (w - 2 * pad);
+  const y = (v) => h - pad - ((v - min) / (max - min)) * (h - 2 * pad);
+  const points = data.map((d, i) => `${x(i)},${y(d.w)}`).join(" ");
+  const areaPoints = `${x(0)},${h - pad} ${points} ${x(data.length - 1)},${h - pad}`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="160">
+      <defs>
+        <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#FF6B35" />
+          <stop offset="100%" stopColor="#B14FFF" />
+        </linearGradient>
+        <linearGradient id="areaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#B14FFF" stopOpacity="0.30" />
+          <stop offset="100%" stopColor="#B14FFF" stopOpacity="0.00" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPoints} fill="url(#areaGrad)" />
+      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="rgba(255,255,255,0.08)" />
+      <polyline points={points} fill="none" stroke="url(#lineGrad)" strokeWidth="2.5" />
+      {data.map((d, i) => (
+        <circle key={i} cx={x(i)} cy={y(d.w)} r="4" fill="#0B0B18" stroke="#FF6B35" strokeWidth="2" />
+      ))}
+      {data.map((d, i) => i % 2 === 0 && (
+        <text key={i} x={x(i)} y={h - 6} fontSize="9" fill={T.soft} textAnchor="middle">{d.d}</text>
+      ))}
+    </svg>
+  );
+}
+function VolumeBarChart({ data }) {
+  const w = 320, h = 140, pad = 24, gap = 8;
+  const max = Math.max(...data.map((d) => d.volume), 1);
+  const barW = (w - 2 * pad) / data.length - gap;
+  const colors = ["#FF6B35","#B14FFF","#00D4A0","#FFD700","#FF4B6E","#00BFFF","#FF9800","#E040FB"];
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="160">
+      <defs>
+        {data.map((_, i) => (
+          <linearGradient key={i} id={`vg${i}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor={colors[i % colors.length]} stopOpacity="1" />
+            <stop offset="100%" stopColor={colors[i % colors.length]} stopOpacity="0.40" />
+          </linearGradient>
+        ))}
+      </defs>
+      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="rgba(255,255,255,0.08)" />
+      {data.map((d, i) => {
+        const bh = Math.max(4, (d.volume / max) * (h - 2 * pad - 10));
+        const x = pad + i * ((w - 2 * pad) / data.length) + gap / 2;
+        return (
+          <g key={d.group}>
+            <rect x={x} y={h - pad - bh} width={barW} height={bh} fill={`url(#vg${i})`} rx="4" />
+            <text x={x + barW / 2} y={h - 7} fontSize="8" fill={T.soft} textAnchor="middle">{d.group}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+/* ---------- Workout tab ---------- */
+function WorkoutTab({ workoutLog, addWorkout, removeWorkout, profile, exerciseDb, addExercise, dateLabel }) {
+  const [hevyText, setHevyText] = useState("");
+  const [parsed, setParsed] = useState(null);
+  const [manualName, setManualName] = useState(exerciseDb[0].name);
+  const [manualSets, setManualSets] = useState([{ weight: "", reps: "" }]);
+  const [expanded, setExpanded] = useState(() => new Set());
+  const [search, setSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState("All");
+  const [showCustomEx, setShowCustomEx] = useState(false);
+  const [customExName, setCustomExName] = useState("");
+  const [customExGroup, setCustomExGroup] = useState("Legs");
+
+  const setVolume = workoutLog.reduce((sum, ex) => sum + ex.sets.reduce((s, st) => s + st.weight * st.reps, 0), 0);
+  const totalSets = workoutLog.reduce((s, ex) => s + ex.sets.length, 0);
+  const dailySetGoal = 20;
+  const setGoalPct = Math.min(100, Math.round((totalSets / dailySetGoal) * 100));
+  const durationHours = (totalSets * 3) / 60;
+  const caloriesBurned = Math.round(5 * (profile?.weight || 80) * durationHours);
+
+  const bodyGroups = ["All", ...Array.from(new Set(exerciseDb.map((e) => e.group)))];
+  const filteredExercises = exerciseDb.filter(
+    (e) => (groupFilter === "All" || e.group === groupFilter) && e.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const byGroup = useMemo(() => {
+    const m = {};
+    workoutLog.forEach((ex) => {
+      const g = groupFor(ex.name, exerciseDb);
+      (m[g] = m[g] || []).push(ex);
+    });
+    return m;
+  }, [workoutLog, exerciseDb]);
+
+  const toggle = (i) => {
+    const next = new Set(expanded);
+    next.has(i) ? next.delete(i) : next.add(i);
+    setExpanded(next);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Card>
+        <Label>Workout — {dateLabel}</Label>
+        {workoutLog.length === 0 ? (
+          <div style={{ fontSize: 13, color: T.soft }}>Nothing logged for {dateLabel.toLowerCase() === "today" ? "today" : dateLabel} yet — paste from Hevy or add manually below.</div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+              {[["Exercises", workoutLog.length], ["Sets", totalSets], ["Volume", `${Math.round(setVolume).toLocaleString()}kg`]].map(([k, v]) => (
+                <div key={k} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "8px 6px", textAlign: "center" }}>
+                  <Num size={16}>{v}</Num>
+                  <div style={{ fontSize: 10, color: T.soft, marginTop: 2 }}>{k}</div>
+                </div>
+              ))}
+            </div>
+            {Object.entries(byGroup).map(([group, exs]) => (
+              <div key={group} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: T.accent, fontWeight: 600, marginBottom: 4 }}>{group}</div>
+                {exs.map((ex) => {
+                  const isOpen = expanded.has(ex._idx);
+                  const vol = ex.sets.reduce((s, st) => s + st.weight * st.reps, 0);
+                  return (
+                    <div key={ex._idx} style={{ borderTop: `1px solid ${T.border}` }}>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <button onClick={() => toggle(ex._idx)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, background: "none", border: "none", padding: "8px 0", cursor: "pointer", textAlign: "left", fontFamily: T.sans }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: T.ink }}>
+                            <span style={{ fontSize: 12, color: T.soft, width: 12, display: "inline-block" }}>{isOpen ? "⌄" : "›"}</span>
+                            {ex.name}
+                          </span>
+                          <span style={{ fontSize: 12, color: T.soft }}>{ex.sets.length} sets{vol > 0 ? ` · ${Math.round(vol)}kg` : ""}</span>
+                        </button>
+                        <button onClick={() => removeWorkout(ex._idx)} aria-label={`Remove ${ex.name}`} style={{ background: "none", border: "none", padding: "6px 0 6px 10px", cursor: "pointer", flexShrink: 0, fontSize: 14 }}>🗑️</button>
+                      </div>
+                      {isOpen && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, paddingBottom: 8, paddingLeft: 20 }}>
+                          {ex.sets.map((s, j) => (
+                            <span key={j} style={{ fontSize: 11, background: "rgba(255,107,53,0.15)", color: T.accent, borderRadius: 20, padding: "3px 9px" }}>
+                              {s.weight > 0 ? `${s.weight}kg × ${s.reps}` : `${s.reps} reps`}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </>
+        )}
+      </Card>
+
+      <Card style={{ background: T.goldSoft, border: `1px solid ${T.gold}33` }}>
+        <Label>{dateLabel}'s workout impact</Label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 22 }}>🔥</span>
+          <div>
+            <Num size={20} color={T.gold}>~{caloriesBurned}</Num>
+            <span style={{ fontSize: 12, color: T.soft, marginLeft: 6 }}>kcal burned (estimate)</span>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: T.soft, marginBottom: 4 }}>{totalSets} / {dailySetGoal} sets toward the training goal for this day</div>
+        <div style={{ height: 8, background: "#FFFFFF", borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ width: `${setGoalPct}%`, height: "100%", background: T.gold }} />
+        </div>
+        <div style={{ fontSize: 11, color: T.soft, marginTop: 8 }}>
+          {setGoalPct >= 100 ? "Goal hit — great session." : setGoalPct >= 60 ? "Good pace — keep going." : "Rough estimate — calorie burn varies a lot by intensity and rest time."}
+        </div>
+      </Card>
+
+      <Card>
+        <Label>Import — paste from Hevy</Label>
+        <textarea value={hevyText} onChange={(e) => setHevyText(e.target.value)} placeholder="Paste the copied Hevy workout text here…" style={{ ...inputStyle, width: "100%", height: 70, fontFamily: T.mono, fontSize: 12 }} />
+        <button style={btnStyle} onClick={() => setParsed(parseHevyText(hevyText || RAW_HEVY_TEXT))}>Parse workout</button>
+        {parsed && (
+          <div style={{ marginTop: 10 }}>
+            {parsed.map((ex, i) => (
+              <div key={i} style={{ fontSize: 12, padding: "4px 0", borderTop: `1px solid ${T.border}` }}>
+                <b>{ex.name}</b> <span style={{ color: T.soft }}>({groupFor(ex.name, exerciseDb)})</span> — {ex.sets.map((s) => (s.weight > 0 ? `${s.weight}×${s.reps}` : `${s.reps} reps`)).join(", ")}
+              </div>
+            ))}
+            <button style={{ ...btnStyle, background: T.good }} onClick={() => { addWorkout(parsed); setParsed(null); setHevyText(""); }}>Confirm &amp; save</button>
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <Label>No Hevy / InBody? Add a workout manually</Label>
+        <input placeholder="Search exercises…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, width: "100%", marginBottom: 8 }} />
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {bodyGroups.map((g) => (
+            <button key={g} onClick={() => setGroupFilter(g)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 20, cursor: "pointer", border: `1px solid ${groupFilter === g ? T.accent : T.border}`, background: groupFilter === g ? T.accent : T.surface, color: groupFilter === g ? "#fff" : T.soft }}>{g}</button>
+          ))}
+        </div>
+        <div style={{ maxHeight: 130, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: 8, marginBottom: 6 }}>
+          {filteredExercises.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.soft, padding: 10 }}>No exercises match "{search}" — add it as a custom exercise below.</div>
+          ) : (
+            filteredExercises.map((e) => (
+              <button key={e.name} onClick={() => setManualName(e.name)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", background: manualName === e.name ? "rgba(255,107,53,0.15)" : "transparent", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer", fontFamily: T.sans }}>
+                <span style={{ fontSize: 13, color: T.ink }}>{e.name}</span> <span style={{ fontSize: 11, color: T.soft }}>· {e.group}</span>
+              </button>
+            ))
+          )}
+        </div>
+        <button onClick={() => setShowCustomEx(!showCustomEx)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: T.accent, fontSize: 12, cursor: "pointer", padding: "4px 0 10px" }}>
+          + {showCustomEx ? "Cancel custom exercise" : "Can't find it? Add a custom exercise"}
+        </button>
+        {showCustomEx && (
+          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 10, marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <input placeholder="Exercise name" value={customExName} onChange={(e) => setCustomExName(e.target.value)} style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+            <select value={customExGroup} onChange={(e) => setCustomExGroup(e.target.value)} style={selectStyle}>
+              {bodyGroups.filter((g) => g !== "All").map((g) => <option key={g}>{g}</option>)}
+            </select>
+            <button style={btnStyle} onClick={() => { if (!customExName.trim()) return; addExercise({ name: customExName.trim(), group: customExGroup }); setManualName(customExName.trim()); setCustomExName(""); setShowCustomEx(false); }}>Add to exercise list</button>
+          </div>
+        )}
+        <div style={{ fontSize: 12, color: T.soft, marginBottom: 6 }}>Selected: <span style={{ color: T.ink }}>{manualName}</span></div>
+        {manualSets.map((s, i) => (
+          <div key={i} style={{ display: "flex", gap: 8, marginTop: 6 }}>
+            <input placeholder="kg" value={s.weight} onChange={(e) => { const next = [...manualSets]; next[i].weight = e.target.value; setManualSets(next); }} style={{ ...inputStyle, width: 60 }} />
+            <input placeholder="reps" value={s.reps} onChange={(e) => { const next = [...manualSets]; next[i].reps = e.target.value; setManualSets(next); }} style={{ ...inputStyle, width: 60 }} />
+          </div>
+        ))}
+        <button style={{ ...btnStyle, background: T.soft }} onClick={() => setManualSets([...manualSets, { weight: "", reps: "" }])}>+ Add set</button>
+        <button style={btnStyle} onClick={() => { addWorkout([{ name: manualName, sets: manualSets.filter((s) => s.reps).map((s) => ({ weight: parseFloat(s.weight) || 0, reps: parseInt(s.reps) })) }]); setManualSets([{ weight: "", reps: "" }]); }}>Save manual entry</button>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- Food tab ---------- */
+/* ── Macro gradient bar ──────────────────────────────────────────────── */
+function MacroBar({ value, target, grad, showPct }) {
+  const p = Math.min(100, target > 0 ? (value / target) * 100 : 0);
+  return (
+    <div style={{ height: 7, background: "rgba(255,255,255,0.07)", borderRadius: 99, overflow: "hidden", flex: 1 }}>
+      <div style={{ width: `${p}%`, height: "100%", background: grad, borderRadius: 99, transition: "width 0.5s ease" }} />
+    </div>
+  );
+}
+
+function FoodTab({ meals, addFood, plan, profile, foodDb, addFoodToDb, mealPlans, saveMealPlan, deleteMealPlan, dateLabel }) {
+  const [foodPick, setFoodPick] = useState(foodDb[0].name);
+  const [qty, setQty] = useState(1);
+  const [meal, setMeal] = useState("Lunch");
+  const [search, setSearch] = useState("");
+  const [showCustomFood, setShowCustomFood] = useState(false);
+  const [customFood, setCustomFood] = useState({ name: "", unit: "1 serving", kcal: "", p: "", c: "", f: "", fiber: "" });
+  const [mealFilter, setMealFilter] = useState("All");
+  const [insightView, setInsightView] = useState(null); // null | "contributors" | "micros"
+  const [contributorMacro, setContributorMacro] = useState("p");
+  const [logMode, setLogMode] = useState("local"); // "ai" | "local" | "gemini" | "online"
+  const [onlineResults, setOnlineResults] = useState([]);
+  const [onlineLoading, setOnlineLoading] = useState(false);
+  const [onlineError, setOnlineError] = useState("");
+  const [selectedOnlineItem, setSelectedOnlineItem] = useState(null);
+  const [onlineGrams, setOnlineGrams] = useState(100);
+  const [onlinePieceMode, setOnlinePieceMode] = useState(false);
+  const [onlinePieces, setOnlinePieces] = useState(1);
+  const [onlineGramsPerPiece, setOnlineGramsPerPiece] = useState(50);
+  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem("thali-gemini-key") || "");
+  const [geminiQuery, setGeminiQuery] = useState("");
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiResults, setGeminiResults] = useState([]); // [{name,unit,kcal,p,c,f,fiber}]
+  const [geminiError, setGeminiError] = useState("");
+  const [aiPasteText, setAiPasteText] = useState("");
+  const [aiParsed, setAiParsed] = useState(null);
+  const [toast, setToast] = useState("");
+  const [showSavedMeals, setShowSavedMeals] = useState(false);
+  const [buildingPlan, setBuildingPlan] = useState(false);
+  const [planName, setPlanName] = useState("");
+  const [planMealType, setPlanMealType] = useState("Breakfast");
+  const [planItems, setPlanItems] = useState([]);
+  const [planSearch, setPlanSearch] = useState("");
+  const [planPickQty, setPlanPickQty] = useState(1);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
+
+  /* ── Gemini nutrition lookup ───────────────────────────────────────── */
+  function doGeminiSearch(q) {
+    if (!q.trim() || !geminiKey.trim()) return;
+    setGeminiLoading(true); setGeminiError(""); setGeminiResults([]);
+    const prompt = `You are a nutrition database. Return ONLY a raw JSON array — no markdown, no code fences, no explanation, nothing else.
+For the food "${q.trim()}", output 1-3 entries covering common serving sizes.
+Format exactly:
+[{"name":"Food Name (serving)","unit":"1 pc","kcal":78,"p":6,"c":0.6,"f":5,"fiber":0,"iron":0.9,"calcium":25,"sodium":62,"potassium":63}]
+Use standard Indian home-cooked values where applicable. All numbers must be plain numbers, not strings.`;
+
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiKey.trim()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        // Check for API-level errors first
+        if (data.error) {
+          const code = data.error.status || "";
+          const httpCode = data.error.code || 0;
+          if (code === "INVALID_ARGUMENT" || code === "UNAUTHENTICATED" || httpCode === 400 || httpCode === 401) {
+            throw new Error("Invalid API key. Get a fresh key from aistudio.google.com → API Keys.");
+          }
+          if (code === "UNAVAILABLE" || code === "RESOURCE_EXHAUSTED" || httpCode === 503 || httpCode === 429) {
+            throw new Error("__busy__");
+          }
+          throw new Error(data.error.message || "Gemini API error");
+        }
+        const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const cleaned = raw.replace(/```json?\s*/gi, "").replace(/```/g, "").trim();
+        let items;
+        try {
+          // Try direct parse first, then regex-extract the array
+          const src = cleaned.startsWith("[") ? cleaned : (cleaned.match(/\[[\s\S]*\]/) || [""])[0];
+          items = JSON.parse(src);
+        } catch (_) {
+          throw new Error(`Gemini returned incomplete JSON — response was cut off. (Preview: ${cleaned.slice(0, 60)})`);
+        }
+        if (!Array.isArray(items) || items.length === 0) throw new Error("Empty result — try rephrasing.");
+        // Normalise fields
+        const normalised = items.map((it) => ({
+          name: String(it.name || q).slice(0, 60),
+          unit: String(it.unit || "1 serving"),
+          kcal: Number(it.kcal) || 0,
+          p: Number(it.p) || 0,
+          c: Number(it.c) || 0,
+          f: Number(it.f) || 0,
+          fiber: Number(it.fiber) || 0,
+          iron: Number(it.iron) || 0,
+          calcium: Number(it.calcium) || 0,
+          sodium: Number(it.sodium) || 0,
+          potassium: Number(it.potassium) || 0,
+        }));
+        setGeminiResults(normalised);
+        setGeminiLoading(false);
+      })
+      .catch((err) => {
+        setGeminiError(err.message || "Gemini error — try again.");
+        setGeminiLoading(false);
+      });
+  }
+
+  /* ── AI paste parser ───────────────────────────────────────────────── */
+  function parseAIPaste(text) {
+    const entries = [];
+    let currentMeal = "Breakfast";
+    for (const raw of text.split("\n")) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (/^#+\s*breakfast|^\*?\*?breakfast\*?\*?:/i.test(line)) { currentMeal = "Breakfast"; continue; }
+      if (/^#+\s*lunch|^\*?\*?lunch\*?\*?:/i.test(line))         { currentMeal = "Lunch"; continue; }
+      if (/^#+\s*dinner|^\*?\*?dinner\*?\*?:/i.test(line))       { currentMeal = "Dinner"; continue; }
+      if (/^#+\s*snack|^\*?\*?snack\*?\*?:/i.test(line))         { currentMeal = "Snack"; continue; }
+      const kcalM = line.match(/(\d+(?:\.\d+)?)\s*(?:kcal|cal|calories)/i);
+      if (!kcalM) continue;
+      const kcal = parseFloat(kcalM[1]);
+      const pM = line.match(/(?:protein|p)[\s:]*(\d+(?:\.\d+)?)\s*g/i);
+      const cM = line.match(/(?:carb[a-z]*|c)[\s:]*(\d+(?:\.\d+)?)\s*g/i);
+      const fM = line.match(/(?:fat|f)[\s:]*(\d+(?:\.\d+)?)\s*g/i);
+      const p = pM ? parseFloat(pM[1]) : 0;
+      const c = cM ? parseFloat(cM[1]) : 0;
+      const f = fM ? parseFloat(fM[1]) : 0;
+      let name = line.replace(/^[\-\*•|\s]+/, "").replace(/\*\*/g, "");
+      const cut = Math.min(...[name.indexOf(":"), name.indexOf("|"), name.indexOf("(")].filter((x) => x > 0).concat([Infinity]));
+      if (cut < Infinity) name = name.slice(0, cut);
+      name = name.trim().slice(0, 50);
+      if (!name || /^(total|summary|food|item|quantity|serving)/i.test(name)) continue;
+      if (kcal === 0 && p === 0) continue;
+      entries.push({ name, kcal, p, c, f, fiber: 0, iron: 0, calcium: 0, sodium: 0, potassium: 0, meal: currentMeal });
+    }
+    return entries;
+  }
+
+  /* ── Food search: fetch → JSONP fallback ──────────────────────────── */
+  function doOnlineSearch(q) {
+    if (!q.trim()) return;
+    const query = q.trim();
+    setOnlineLoading(true); setOnlineError(""); setOnlineResults([]); setSelectedOnlineItem(null);
+
+    const processProducts = (products) => {
+      const items = (products || [])
+        .filter((p) => p.product_name && p.nutriments && (p.nutriments["energy-kcal_100g"] || 0) > 0)
+        .slice(0, 12);
+      setOnlineResults(items);
+      if (items.length === 0) setOnlineError('No results — try a simpler word (e.g. "egg" not "white boiled egg").');
+      setOnlineLoading(false);
+    };
+
+    // Primary: fetch v2 API (has CORS headers — works in Chrome from file://)
+    const url = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&fields=product_name,nutriments&page_size=20`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => processProducts(data.products))
+      .catch(() => {
+        // Fallback: JSONP (works in some browsers where fetch is blocked)
+        const cbName = `off_${Date.now()}`;
+        const script = document.createElement("script");
+        script.src = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=20&callback=${cbName}`;
+        let done = false;
+        const finish = (err) => {
+          if (done) return; done = true;
+          clearTimeout(timer);
+          delete window[cbName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+          if (err) { setOnlineError(err); setOnlineLoading(false); }
+        };
+        const timer = setTimeout(() => finish('Timed out — try again, or switch to 🤖 AI Paste.'), 12000);
+        window[cbName] = (data) => { processProducts(data.products); finish(null); };
+        script.onerror = () => finish("__blocked__");
+        document.head.appendChild(script);
+      });
+  }
+
+  const food = foodDb.find((f) => f.name === foodPick) || foodDb[0];
+  const filteredFoods = foodDb.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()));
+
+  const viewMeals = mealFilter === "All" ? meals : meals.filter((m) => m.meal === mealFilter);
+
+  const totals = meals.reduce((a, m) => ({
+    kcal: a.kcal + m.kcal, p: a.p + m.p, c: a.c + m.c, f: a.f + m.f,
+    fiber: a.fiber + (m.fiber || 0), iron: a.iron + (m.iron || 0),
+    calcium: a.calcium + (m.calcium || 0), sodium: a.sodium + (m.sodium || 0), potassium: a.potassium + (m.potassium || 0),
+  }), { kcal: 0, p: 0, c: 0, f: 0, fiber: 0, iron: 0, calcium: 0, sodium: 0, potassium: 0 });
+
+  const pct = Math.min(100, Math.round((totals.kcal / plan.target) * 100));
+  const remaining = plan.target - totals.kcal;
+  const pt = personalizedTargets(profile, plan.target);
+  const macroTargets = { p: pt.protein, c: pt.carbs, f: pt.fat };
+
+  const MEAL_TABS = ["All", "Breakfast", "Lunch", "Dinner", "Snack"];
+
+  const macroConfig = [
+    { key: "p", label: "Protein", color: T.good, grad: "linear-gradient(90deg,#00D4A0,#00BFFF)", unit: "g" },
+    { key: "f", label: "Fats",    color: "#FFD700", grad: "linear-gradient(90deg,#FFD700,#FF9800)", unit: "g" },
+    { key: "c", label: "Carbs",   color: T.accent,  grad: "linear-gradient(90deg,#FF6B35,#FF4B6E)", unit: "g" },
+    { key: "fiber", label: "Fiber", color: T.accent2, grad: "linear-gradient(90deg,#B14FFF,#7B2FFF)", unit: "g",
+      t: pt.fiber },
+  ];
+
+  // ── Contributors view ──────────────────────────────────────────────────
+  if (insightView === "contributors") {
+    const mc = macroConfig.find((m) => m.key === contributorMacro) || macroConfig[0];
+    const sorted = [...meals].sort((a, b) => (b[mc.key] || 0) - (a[mc.key] || 0)).slice(0, 8);
+    const totalMacro = totals[mc.key] || 0;
+    const macroT = mc.t || macroTargets[mc.key] || 1;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setInsightView(null)} style={{ background: "none", border: "none", color: T.accent, fontSize: 22, cursor: "pointer", padding: 0 }}>←</button>
+          <span style={{ color: T.ink, fontWeight: 700, fontSize: 17 }}>Top Contributors</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+          {macroConfig.map((m) => (
+            <button key={m.key} onClick={() => setContributorMacro(m.key)} style={{ flexShrink: 0, padding: "6px 14px", borderRadius: 99, border: "none", background: contributorMacro === m.key ? m.grad : "rgba(255,255,255,0.07)", color: contributorMacro === m.key ? "#fff" : T.soft, fontSize: 13, cursor: "pointer", fontWeight: contributorMacro === m.key ? 700 : 400 }}>{m.label}</button>
+          ))}
+        </div>
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <div style={{ position: "relative", width: 72, height: 72 }}>
+              <RadialProgress pct={Math.min(100, (totalMacro / macroT) * 100)} size={72} stroke={8} color={mc.grad} />
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: T.ink, fontWeight: 700 }}>{Math.round((totalMacro / macroT) * 100)}%</div>
+            </div>
+            <div>
+              <div style={{ color: T.soft, fontSize: 12 }}>Total {mc.label}</div>
+              <Num size={22}>{Math.round(totalMacro)}{mc.unit}</Num>
+              <div style={{ color: T.soft, fontSize: 12 }}>of {macroT}{mc.unit} target</div>
+            </div>
+          </div>
+          {sorted.length === 0 && <div style={{ color: T.soft, fontSize: 13 }}>No food logged yet.</div>}
+          {sorted.map((m, i) => {
+            const val = m[mc.key] || 0;
+            const pctBar = totalMacro > 0 ? (val / totalMacro) * 100 : 0;
+            return (
+              <div key={i} style={{ marginBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, color: T.ink }}>{m.name}</span>
+                  <span style={{ fontSize: 13, color: mc.color, fontWeight: 700 }}>{Math.round(val)}{mc.unit}</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <MacroBar value={val} target={totalMacro} grad={mc.grad} />
+                  <span style={{ fontSize: 11, color: T.soft, minWidth: 30, textAlign: "right" }}>{Math.round(pctBar)}%</span>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Micros/nutrients view ──────────────────────────────────────────────
+  if (insightView === "micros") {
+    const microRows = [
+      { key: "fiber", label: "Fiber", t: pt.fiber, unit: "g", grad: "linear-gradient(90deg,#B14FFF,#7B2FFF)", isCap: false },
+      { key: "iron", label: "Iron", t: pt.iron, unit: "mg", grad: "linear-gradient(90deg,#FF6B35,#FFD700)", isCap: false },
+      { key: "calcium", label: "Calcium", t: pt.calcium, unit: "mg", grad: "linear-gradient(90deg,#00D4A0,#00BFFF)", isCap: false },
+      { key: "sodium", label: "Sodium", t: pt.sodium, unit: "mg", grad: "linear-gradient(90deg,#FF4B6E,#FF6B35)", isCap: true },
+      { key: "potassium", label: "Potassium", t: pt.potassium, unit: "mg", grad: "linear-gradient(90deg,#00BFFF,#B14FFF)", isCap: false },
+    ];
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => setInsightView(null)} style={{ background: "none", border: "none", color: T.accent, fontSize: 22, cursor: "pointer", padding: 0 }}>←</button>
+          <span style={{ color: T.ink, fontWeight: 700, fontSize: 17 }}>Micronutrients</span>
+        </div>
+        <Card>
+          {microRows.map((row) => {
+            const val = totals[row.key] || 0;
+            const pctFill = Math.min(100, (val / row.t) * 100);
+            const over = row.isCap && val > row.t;
+            return (
+              <div key={row.key} style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{ color: T.ink, fontSize: 14, fontWeight: 600 }}>{row.label}</span>
+                  <span style={{ fontSize: 13, color: over ? T.alert : T.soft }}>{Math.round(val)} / {row.t} {row.unit} · <span style={{ color: over ? T.alert : T.good, fontWeight: 700 }}>{Math.round(pctFill)}%</span></span>
+                </div>
+                <MacroBar value={val} target={row.t} grad={over ? "linear-gradient(90deg,#FF4B6E,#FF0055)" : row.grad} />
+                <div style={{ fontSize: 11, color: T.soft, marginTop: 4 }}>{row.isCap ? "Keep under" : "Target"}: {row.t} {row.unit}</div>
+              </div>
+            );
+          })}
+        </Card>
+      </div>
+    );
+  }
+
+  // ── Saved Meal Builder view ────────────────────────────────────────────
+  if (buildingPlan) {
+    const planFiltered = foodDb.filter((f) => f.name.toLowerCase().includes(planSearch.toLowerCase())).slice(0, 30);
+    const planTotals = planItems.reduce((a, item) => {
+      const fd = foodDb.find((f) => f.name === item.foodName);
+      if (!fd) return a;
+      return { kcal: a.kcal + fd.kcal * item.qty, p: a.p + fd.p * item.qty, c: a.c + fd.c * item.qty, f: a.f + fd.f * item.qty };
+    }, { kcal: 0, p: 0, c: 0, f: 0 });
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => { setBuildingPlan(false); setPlanItems([]); setPlanName(""); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 22, cursor: "pointer", padding: 0 }}>←</button>
+          <span style={{ color: T.ink, fontWeight: 700, fontSize: 17 }}>Create Saved Meal</span>
+        </div>
+        <Card>
+          <input placeholder="Meal name (e.g. My Breakfast)" value={planName} onChange={(e) => setPlanName(e.target.value)} style={{ ...inputStyle, width: "100%", marginBottom: 8 }} />
+          <select value={planMealType} onChange={(e) => setPlanMealType(e.target.value)} style={selectStyle}>
+            {["Breakfast","Lunch","Dinner","Snack"].map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </Card>
+
+        {/* Added items */}
+        {planItems.length > 0 && (
+          <Card>
+            <Label>Meal contents</Label>
+            {planItems.map((item, i) => {
+              const fd = foodDb.find((f) => f.name === item.foodName);
+              return (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: i < planItems.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: T.ink, fontWeight: 600 }}>{item.foodName}</div>
+                    <div style={{ fontSize: 11, color: T.soft }}>{item.qty} × {fd?.unit} · {fd ? Math.round(fd.kcal * item.qty) : "?"} kcal</div>
+                  </div>
+                  <button onClick={() => setPlanItems(planItems.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: T.alert, fontSize: 18, cursor: "pointer" }}>×</button>
+                </div>
+              );
+            })}
+            <div style={{ marginTop: 10, padding: "8px 0", borderTop: `1px solid ${T.border}`, display: "flex", gap: 16 }}>
+              <span style={{ fontSize: 12, color: T.soft }}>Total</span>
+              <GradText style={{ fontSize: 14, fontWeight: 700, fontFamily: T.mono }}>{Math.round(planTotals.kcal)} kcal</GradText>
+              <span style={{ fontSize: 12, color: T.soft }}>P {Math.round(planTotals.p)}g · C {Math.round(planTotals.c)}g · F {Math.round(planTotals.f)}g</span>
+            </div>
+          </Card>
+        )}
+
+        {/* Food picker */}
+        <Card>
+          <Label>Add food to this meal</Label>
+          <input placeholder="Search foods…" value={planSearch} onChange={(e) => setPlanSearch(e.target.value)} style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+          <div style={{ maxHeight: 160, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 8 }}>
+            {planFiltered.map((f) => (
+              <button key={f.name} onClick={() => {
+                setPlanItems([...planItems, { foodName: f.name, qty: planPickQty }]);
+                showToast(`+ ${f.name.slice(0,25)}`);
+              }} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 12px", background: "transparent", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer", fontFamily: T.sans }}>
+                <span style={{ fontSize: 13, color: T.ink }}>{f.name}</span>
+                <span style={{ fontSize: 11, color: T.soft }}> · {f.unit} · </span>
+                <span style={{ fontSize: 12, color: T.accent, fontWeight: 700 }}>{f.kcal} kcal</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 12, color: T.soft }}>Qty:</span>
+            <input type="number" min="0.5" step="0.5" value={planPickQty} onChange={(e) => setPlanPickQty(parseFloat(e.target.value) || 1)} style={{ ...inputStyle, width: 65 }} />
+            <span style={{ fontSize: 12, color: T.soft }}>(tap a food above to add it)</span>
+          </div>
+        </Card>
+
+        <button
+          style={{ ...btnStyle, width: "100%", padding: 14, fontSize: 15, opacity: (!planName.trim() || planItems.length === 0) ? 0.4 : 1 }}
+          disabled={!planName.trim() || planItems.length === 0}
+          onClick={() => {
+            saveMealPlan({ name: planName.trim(), mealType: planMealType, items: planItems });
+            showToast(`✓ "${planName.trim()}" saved!`);
+            setBuildingPlan(false); setPlanItems([]); setPlanName(""); setPlanSearch("");
+          }}
+        >💾 Save Meal</button>
+      </div>
+    );
+  }
+
+  // ── Main food view ─────────────────────────────────────────────────────
+  const mealsByType = {};
+  MEAL_TABS.slice(1).forEach((t) => { mealsByType[t] = meals.filter((m) => m.meal === t); });
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: "fixed", top: 70, left: "50%", transform: "translateX(-50%)", zIndex: 999, background: "rgba(0,212,160,0.92)", color: "#0B0B18", padding: "10px 20px", borderRadius: 99, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,212,160,0.4)" }}>
+          {toast}
+        </div>
+      )}
+
+      {/* Calorie ring + budget */}
+      <Card glow={pct >= 95}>
+        <Label>Calorie Budget — {dateLabel}</Label>
+        <div style={{ display: "flex", alignItems: "center", gap: 18, marginTop: 8 }}>
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <RadialProgress pct={pct} size={110} stroke={12} />
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <Num size={26}>{pct}</Num>
+              <span style={{ fontSize: 11, color: T.soft }}>%</span>
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ fontSize: 11, color: T.soft }}>Consumed</div>
+              <GradText style={{ fontSize: 28, fontWeight: 800, fontFamily: T.mono }}>{Math.round(totals.kcal)}</GradText>
+              <span style={{ fontSize: 14, color: T.soft }}> kcal</span>
+            </div>
+            <div style={{ display: "flex", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: T.soft }}>Budget</div>
+                <Num size={16}>{plan.target}</Num>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: remaining >= 0 ? T.good : T.alert }}>{remaining >= 0 ? "Remaining" : "Over"}</div>
+                <Num size={16} color={remaining >= 0 ? T.good : T.alert}>{Math.abs(Math.round(remaining))}</Num>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Saved Meals */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: mealPlans.length > 0 ? 12 : 0 }}>
+          <Label>Saved Meals</Label>
+          <div style={{ display: "flex", gap: 8 }}>
+            {mealPlans.length > 0 && (
+              <button onClick={() => setShowSavedMeals(!showSavedMeals)} style={{ background: "none", border: "none", color: T.soft, fontSize: 12, cursor: "pointer", fontFamily: T.sans }}>
+                {showSavedMeals ? "▲ Hide" : "▼ Show all"}
+              </button>
+            )}
+            <button onClick={() => setBuildingPlan(true)} style={{ background: T.gradAccent, border: "none", color: "#fff", fontSize: 12, padding: "5px 12px", borderRadius: 99, cursor: "pointer", fontWeight: 700 }}>+ New</button>
+          </div>
+        </div>
+        {mealPlans.length === 0 ? (
+          <div style={{ color: T.soft, fontSize: 13 }}>No saved meals yet — hit <strong style={{ color: T.ink }}>+ New</strong> to create one. Log your usual breakfast/lunch in one tap.</div>
+        ) : (
+          (showSavedMeals ? mealPlans : mealPlans.slice(-3)).map((mp, idx) => {
+            const mpTotals = mp.items.reduce((a, item) => {
+              const fd = foodDb.find((f) => f.name === item.foodName);
+              if (!fd) return a;
+              return { kcal: a.kcal + fd.kcal * item.qty, p: a.p + fd.p * item.qty };
+            }, { kcal: 0, p: 0 });
+            return (
+              <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderTop: `1px solid ${T.border}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, color: T.ink, fontWeight: 700 }}>{mp.name}</div>
+                  <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>
+                    {mp.mealType} · {mp.items.length} items · <span style={{ color: T.accent, fontWeight: 700 }}>{Math.round(mpTotals.kcal)} kcal</span> · P {Math.round(mpTotals.p)}g
+                  </div>
+                  <div style={{ fontSize: 11, color: T.soft, marginTop: 1 }}>{mp.items.map((it) => `${it.qty}× ${it.foodName.split(" ").slice(0,2).join(" ")}`).join(", ")}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0, marginLeft: 8 }}>
+                  <button onClick={() => {
+                    mp.items.forEach((item) => {
+                      const fd = foodDb.find((f) => f.name === item.foodName);
+                      if (!fd) return;
+                      addFood({ meal: mp.mealType, name: fd.name, kcal: fd.kcal * item.qty, p: fd.p * item.qty, c: fd.c * item.qty, f: fd.f * item.qty, fiber: (fd.fiber || 0) * item.qty, iron: (fd.iron || 0) * item.qty, calcium: (fd.calcium || 0) * item.qty, sodium: (fd.sodium || 0) * item.qty, potassium: (fd.potassium || 0) * item.qty });
+                    });
+                    showToast(`✓ Logged "${mp.name}"`);
+                  }} style={{ background: T.gradAccent, border: "none", color: "#fff", fontSize: 12, padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>Log</button>
+                  <button onClick={() => { if (window.confirm(`Delete "${mp.name}"?`)) deleteMealPlan(mealPlans.indexOf(mp)); }} style={{ background: "rgba(255,75,110,0.12)", border: "none", color: T.alert, fontSize: 12, padding: "6px 10px", borderRadius: 8, cursor: "pointer" }}>✕</button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </Card>
+
+      {/* Macro breakdown */}
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <Label>Macronutrients</Label>
+          <button onClick={() => setInsightView("contributors")} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, cursor: "pointer", fontFamily: T.sans, fontWeight: 600 }}>View Contributors →</button>
+        </div>
+        {macroConfig.map((m) => {
+          const val = totals[m.key] || 0;
+          const target = m.t || macroTargets[m.key] || 1;
+          const p = Math.min(100, (val / target) * 100);
+          return (
+            <div key={m.key} style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 99, background: m.grad, flexShrink: 0 }} />
+                  <span style={{ fontSize: 14, color: T.ink }}>{m.label}</span>
+                </div>
+                <span style={{ fontSize: 13, color: T.soft }}><span style={{ color: m.color, fontWeight: 700 }}>{Math.round(val)}</span>g / {target}g · {Math.round(p)}%</span>
+              </div>
+              <MacroBar value={val} target={target} grad={m.grad} />
+            </div>
+          );
+        })}
+        {/* Micronutrients inline */}
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 12, color: T.soft, fontWeight: 600, marginBottom: 10, letterSpacing: 0.5 }}>MICRONUTRIENTS</div>
+          {[
+            { key: "fiber",     label: "Fiber",     t: pt.fiber,     unit: "g",  grad: "linear-gradient(90deg,#B14FFF,#7B2FFF)", isCap: false },
+            { key: "iron",      label: "Iron",      t: pt.iron,      unit: "mg", grad: "linear-gradient(90deg,#FF6B35,#FFD700)", isCap: false },
+            { key: "calcium",   label: "Calcium",   t: pt.calcium,   unit: "mg", grad: "linear-gradient(90deg,#00D4A0,#00BFFF)", isCap: false },
+            { key: "sodium",    label: "Sodium",    t: pt.sodium,    unit: "mg", grad: "linear-gradient(90deg,#FF4B6E,#FF6B35)", isCap: true  },
+            { key: "potassium", label: "Potassium", t: pt.potassium, unit: "mg", grad: "linear-gradient(90deg,#00BFFF,#B14FFF)", isCap: false },
+          ].map((m) => {
+            const val = totals[m.key] || 0;
+            const pct = Math.min(100, (val / m.t) * 100);
+            const over = m.isCap && val > m.t;
+            return (
+              <div key={m.key} style={{ marginBottom: 9 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, color: T.soft }}>{m.label}{m.isCap ? " ⚠ cap" : ""}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: over ? T.alert : T.soft }}>
+                    {val % 1 === 0 ? val : val.toFixed(1)}{m.unit} / {m.t}{m.unit}
+                  </span>
+                </div>
+                <MacroBar value={val} target={m.t} grad={over ? "linear-gradient(90deg,#FF4B6E,#FF6B35)" : m.grad} />
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Per-meal log */}
+      <Card>
+        <Label>Today's Meals</Label>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8, marginBottom: 8 }}>
+          {MEAL_TABS.map((t) => (
+            <button key={t} onClick={() => setMealFilter(t)} style={{ flexShrink: 0, padding: "5px 12px", borderRadius: 99, border: "none", background: mealFilter === t ? T.gradAccent : "rgba(255,255,255,0.07)", color: mealFilter === t ? "#fff" : T.soft, fontSize: 12, cursor: "pointer", fontWeight: mealFilter === t ? 700 : 400 }}>{t}</button>
+          ))}
+        </div>
+        {viewMeals.length === 0 ? (
+          <div style={{ color: T.soft, fontSize: 13, padding: "8px 0" }}>Nothing logged{mealFilter !== "All" ? ` for ${mealFilter}` : ""} yet.</div>
+        ) : (
+          viewMeals.map((m, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: i < viewMeals.length - 1 ? `1px solid ${T.border}` : "none" }}>
+              <div>
+                <div style={{ fontSize: 14, color: T.ink, fontWeight: 600 }}>{m.name}</div>
+                <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>{m.meal} · P:{Math.round(m.p)}g C:{Math.round(m.c)}g F:{Math.round(m.f)}g</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <GradText style={{ fontSize: 16, fontWeight: 700, fontFamily: T.mono }}>{Math.round(m.kcal)}</GradText>
+                <div style={{ fontSize: 11, color: T.soft }}>kcal</div>
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+
+      {/* Log food form */}
+      <Card>
+        <Label>Log Food</Label>
+        <select value={meal} onChange={(e) => setMeal(e.target.value)} style={selectStyle}>
+          {["Breakfast", "Lunch", "Dinner", "Snack"].map((m) => <option key={m}>{m}</option>)}
+        </select>
+        {/* Mode tabs */}
+        <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
+          {[["ai","📋 AI Paste"],["local","📚 Local"],["online","🌐 OFF"]].map(([mode, label]) => (
+            <button key={mode} onClick={() => { setLogMode(mode); setSelectedOnlineItem(null); setAiParsed(null); setGeminiResults([]); }} style={{ flex: 1, padding: "7px 3px", borderRadius: 8, border: "none", background: logMode === mode ? T.gradAccent : "rgba(255,255,255,0.07)", color: logMode === mode ? "#fff" : T.soft, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>{label}</button>
+          ))}
+        </div>
+
+        {/* ── LOCAL ── */}
+        {logMode === "local" && (
+          <>
+            <input placeholder={`🔍 Search ${foodDb.length} foods…`} value={search} onChange={(e) => setSearch(e.target.value)} style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+            <div style={{ maxHeight: 160, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 10 }}>
+              {filteredFoods.length === 0 ? (
+                <div style={{ fontSize: 12, color: T.soft, padding: 12 }}>No match — try 🌐 Online or paste from an AI chatbot.</div>
+              ) : (
+                filteredFoods.map((f) => (
+                  <button key={f.name} onClick={() => setFoodPick(f.name)} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: foodPick === f.name ? "rgba(255,107,53,0.15)" : "transparent", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer", fontFamily: T.sans }}>
+                    <span style={{ fontSize: 13, color: T.ink, fontWeight: foodPick === f.name ? 700 : 400 }}>{f.name}</span>
+                    <span style={{ fontSize: 11, color: T.soft }}> · {f.unit} · </span>
+                    <span style={{ fontSize: 12, color: T.accent, fontWeight: 700 }}>{f.kcal} kcal</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── GEMINI ── */}
+        {/* ── ONLINE ── */}
+        {logMode === "online" && (
+          <div style={{ marginBottom: 10 }}>
+            {!selectedOnlineItem ? (
+              <>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <input placeholder="e.g. ragi roti, paneer, maggi…" style={{ ...inputStyle, flex: 1 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") doOnlineSearch(e.target.value); }} />
+                  <span style={{ fontSize: 11, color: T.soft, alignSelf: "center", whiteSpace: "nowrap" }}>↵ Enter</span>
+                </div>
+                {onlineLoading && <div style={{ color: T.soft, fontSize: 13, padding: "6px 0" }}>Searching…</div>}
+                {onlineError && onlineError !== "__blocked__" && (
+                  <div style={{ color: T.alert, fontSize: 12, padding: "6px 0", lineHeight: 1.5 }}>{onlineError}</div>
+                )}
+                {onlineError === "__blocked__" && (
+                  <div style={{ background: "rgba(255,75,110,0.10)", border: `1px solid rgba(255,75,110,0.25)`, borderRadius: 12, padding: 14, marginBottom: 6 }}>
+                    <div style={{ color: T.alert, fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Blocked by your browser</div>
+                    <div style={{ color: T.soft, fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
+                      Safari blocks external requests from local HTML files.<br />
+                      <strong style={{ color: T.ink }}>Best fix:</strong> right-click → Open With → <strong style={{ color: T.ink }}>Chrome</strong>.<br />
+                      Or use <strong style={{ color: T.accent2 }}>🤖 AI Paste</strong> — works in any browser.
+                    </div>
+                    <button onClick={() => {
+                      setLogMode("ai");
+                      setAiPasteText("Breakfast:\n- \n\nLunch:\n- \n\nDinner:\n- \n");
+                    }} style={{ ...btnStyle, marginTop: 0, padding: "8px 14px", fontSize: 12 }}>
+                      Switch to 🤖 AI Paste →
+                    </button>
+                  </div>
+                )}
+                {onlineResults.length > 0 && (
+                  <div style={{ maxHeight: 220, overflowY: "auto", border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                    {onlineResults.map((p, i) => {
+                      const nm = p.nutriments;
+                      const k100 = Math.round(nm["energy-kcal_100g"] || 0);
+                      const pr = +(nm["proteins_100g"] || 0).toFixed(1);
+                      const cb = +(nm["carbohydrates_100g"] || 0).toFixed(1);
+                      const ft = +(nm["fat_100g"] || 0).toFixed(1);
+                      return (
+                        <button key={i} onClick={() => { setSelectedOnlineItem(p); setOnlineGrams(100); setOnlinePieceMode(false); setOnlinePieces(1); setOnlineGramsPerPiece(50); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: "transparent", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer", fontFamily: T.sans }}>
+                          <div style={{ fontSize: 13, color: T.ink, fontWeight: 600 }}>{p.product_name.slice(0, 52)}</div>
+                          <div style={{ fontSize: 11, color: T.soft, marginTop: 2 }}>per 100g · <span style={{ color: T.accent, fontWeight: 700 }}>{k100} kcal</span> · P{pr}g C{cb}g F{ft}g</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: T.soft, marginTop: 6 }}>Open Food Facts (CC BY-SA). Tap a result to set qty &amp; log it.</div>
+              </>
+            ) : (
+              /* Qty picker for selected online item */
+              (() => {
+                const nm = selectedOnlineItem.nutriments;
+                const k100 = nm["energy-kcal_100g"] || 0;
+                const pr100 = nm["proteins_100g"] || 0;
+                const cb100 = nm["carbohydrates_100g"] || 0;
+                const ft100 = nm["fat_100g"] || 0;
+                const fi100 = nm["fiber_100g"] || 0;
+                const na100 = (nm["sodium_100g"] || 0) * 1000;
+                const ca100 = (nm["calcium_100g"] || 0) * 1000;
+                const fe100 = (nm["iron_100g"] || 0) * 1000;
+                const po100 = (nm["potassium_100g"] || 0) * 1000;
+                const scale = onlineGrams / 100;
+                const kcalFinal = Math.round(k100 * scale);
+                return (
+                  <div style={{ background: "rgba(255,107,53,0.08)", border: `1px solid rgba(255,107,53,0.3)`, borderRadius: 12, padding: 14 }}>
+                    <button onClick={() => setSelectedOnlineItem(null)} style={{ background: "none", border: "none", color: T.soft, fontSize: 12, cursor: "pointer", padding: "0 0 8px", fontFamily: T.sans }}>← Back to results</button>
+                    <div style={{ fontSize: 15, color: T.ink, fontWeight: 700, marginBottom: 4 }}>{selectedOnlineItem.product_name.slice(0, 52)}</div>
+                    <div style={{ fontSize: 11, color: T.soft, marginBottom: 12 }}>Nutrition data per 100g from Open Food Facts</div>
+                    {/* Mode toggle: Grams vs Pieces */}
+                    <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                      {[false, true].map((isPiece) => (
+                        <button key={isPiece} onClick={() => setOnlinePieceMode(isPiece)} style={{ flex: 1, padding: "5px 4px", borderRadius: 7, border: "none", background: onlinePieceMode === isPiece ? T.gradAccent : "rgba(255,255,255,0.07)", color: onlinePieceMode === isPiece ? "#fff" : T.soft, fontSize: 12, cursor: "pointer", fontWeight: 700 }}>
+                          {isPiece ? "🔢 Pieces" : "⚖️ Grams"}
+                        </button>
+                      ))}
+                    </div>
+                    {onlinePieceMode ? (
+                      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", marginBottom: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: T.soft, marginBottom: 4 }}>Pieces</div>
+                          <input type="number" min="1" step="1" value={onlinePieces} onChange={(e) => { const n = parseFloat(e.target.value) || 1; setOnlinePieces(n); setOnlineGrams(Math.round(n * onlineGramsPerPiece)); }} style={{ ...inputStyle, width: 68, fontSize: 16, fontWeight: 700 }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, color: T.soft, marginBottom: 4 }}>g / piece</div>
+                          <input type="number" min="1" step="1" value={onlineGramsPerPiece} onChange={(e) => { const g = parseFloat(e.target.value) || 50; setOnlineGramsPerPiece(g); setOnlineGrams(Math.round(onlinePieces * g)); }} style={{ ...inputStyle, width: 68, fontSize: 16, fontWeight: 700 }} />
+                        </div>
+                        <div style={{ flex: 1, paddingBottom: 6 }}>
+                          <div style={{ fontSize: 11, color: T.soft }}>Total</div>
+                          <GradText style={{ fontSize: 20, fontWeight: 900, fontFamily: T.mono }}>{onlineGrams}g</GradText>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 11, color: T.soft, marginBottom: 4 }}>Grams</div>
+                          <input type="number" min="1" step="5" value={onlineGrams} onChange={(e) => setOnlineGrams(parseFloat(e.target.value) || 100)} style={{ ...inputStyle, width: 90, fontSize: 16, fontWeight: 700 }} />
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <GradText style={{ fontSize: 24, fontWeight: 900, fontFamily: T.mono }}>{kcalFinal}</GradText>
+                        <span style={{ fontSize: 13, color: T.soft }}> kcal</span>
+                        <div style={{ fontSize: 12, color: T.soft, marginTop: 2 }}>P {+(pr100*scale).toFixed(1)}g · C {+(cb100*scale).toFixed(1)}g · F {+(ft100*scale).toFixed(1)}g</div>
+                      </div>
+                    </div>
+                    <button style={{ ...btnStyle, width: "100%", padding: 12 }} onClick={() => {
+                      const entry = {
+                        name: selectedOnlineItem.product_name.slice(0, 60),
+                        unit: "100g",
+                        kcal: Math.round(k100), p: +pr100.toFixed(1), c: +cb100.toFixed(1), f: +ft100.toFixed(1),
+                        fiber: +fi100.toFixed(1), iron: +fe100.toFixed(2), calcium: Math.round(ca100),
+                        sodium: Math.round(na100), potassium: Math.round(po100),
+                      };
+                      addFoodToDb(entry);
+                      addFood({ meal, name: entry.name, kcal: kcalFinal, p: +(pr100*scale).toFixed(1), c: +(cb100*scale).toFixed(1), f: +(ft100*scale).toFixed(1), fiber: +(fi100*scale).toFixed(1), iron: +(fe100*scale).toFixed(2), calcium: Math.round(ca100*scale), sodium: Math.round(na100*scale), potassium: Math.round(po100*scale) });
+                      showToast(`✓ Logged ${kcalFinal} kcal of ${entry.name.slice(0,20)}`);
+                      setSelectedOnlineItem(null); setOnlineResults([]); setLogMode("local");
+                    }}>＋ Log {onlinePieceMode ? `${onlinePieces} pc × ${onlineGramsPerPiece}g` : `${onlineGrams}g`} to {meal}</button>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        )}
+
+        {/* ── AI PASTE ── */}
+        {logMode === "ai" && (
+          <div style={{ marginBottom: 10 }}>
+            {!aiParsed ? (
+              <>
+                {(() => {
+                  const PROMPT_TEMPLATE = `Give me nutrition info for my meals today:
+
+Breakfast:
+- [e.g. 2 boiled eggs, 2 rotis, 1 cup chai]
+
+Lunch:
+- [e.g. 1 cup rajma, 2 rotis]
+
+Dinner:
+- [e.g. 1 cup dal, 1 cup rice, sabji]
+
+Snacks:
+- [e.g. 1 banana, handful almonds]
+
+For each food item show on a separate line:
+kcal, protein (g), carbs (g), fat (g), fiber (g), iron (mg), calcium (mg), sodium (mg), potassium (mg)
+Use Indian home-cooked values where applicable.`;
+                  return (
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: T.soft, fontWeight: 600 }}>Copy this prompt → paste into ChatGPT / Gemini</span>
+                        <button onClick={() => { navigator.clipboard.writeText(PROMPT_TEMPLATE).then(() => showToast("✓ Prompt copied!")); }} style={{ background: T.gradAccent, border: "none", borderRadius: 7, color: "#fff", fontSize: 11, fontWeight: 700, padding: "5px 12px", cursor: "pointer", fontFamily: T.sans }}>📋 Copy</button>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", fontSize: 11, color: T.soft, fontFamily: T.mono, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{PROMPT_TEMPLATE}</div>
+                      <div style={{ fontSize: 11, color: T.soft, marginTop: 6 }}>Fill in your actual meals, then paste the AI's response below ↓</div>
+                    </div>
+                  );
+                })()}
+                <textarea
+                  placeholder={"Paste AI response here...\n\nExample:\nBreakfast:\n- 2 Boiled Eggs: 156 kcal, protein 12g, carbs 1g, fat 10g\n- 2 Rotis: 240 kcal, protein 6g, carbs 36g, fat 7g"}
+                  rows={8}
+                  value={aiPasteText}
+                  onChange={(e) => setAiPasteText(e.target.value)}
+                  style={{ ...inputStyle, width: "100%", resize: "vertical", lineHeight: 1.5, marginBottom: 8 }}
+                />
+                <button style={{ ...btnStyle, width: "100%" }} onClick={() => {
+                  const parsed = parseAIPaste(aiPasteText);
+                  if (parsed.length === 0) { showToast("⚠ Nothing parsed — check format"); return; }
+                  setAiParsed(parsed);
+                }}>Parse →</button>
+              </>
+            ) : (
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ color: T.ink, fontWeight: 700 }}>{aiParsed.length} items parsed</span>
+                  <button onClick={() => setAiParsed(null)} style={{ background: "none", border: "none", color: T.soft, fontSize: 12, cursor: "pointer" }}>← Edit</button>
+                </div>
+                <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, marginBottom: 10, maxHeight: 240, overflowY: "auto" }}>
+                  {aiParsed.map((item, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 12px", borderBottom: i < aiParsed.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                      <div>
+                        <div style={{ fontSize: 13, color: T.ink, fontWeight: 600 }}>{item.name}</div>
+                        <div style={{ fontSize: 11, color: T.soft }}>{item.meal} · P{item.p}g C{item.c}g F{item.f}g</div>
+                      </div>
+                      <GradText style={{ fontSize: 14, fontWeight: 700, fontFamily: T.mono }}>{Math.round(item.kcal)}</GradText>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", marginBottom: 10 }}>
+                  <span style={{ color: T.soft, fontSize: 13 }}>Total</span>
+                  <GradText style={{ fontSize: 16, fontWeight: 700, fontFamily: T.mono }}>{Math.round(aiParsed.reduce((s, x) => s + x.kcal, 0))} kcal</GradText>
+                </div>
+                <button style={{ ...btnStyle, width: "100%", padding: 12 }} onClick={() => {
+                  aiParsed.forEach((item) => addFood(item));
+                  showToast(`✓ Logged ${aiParsed.length} items from AI paste`);
+                  setAiParsed(null); setAiPasteText(""); setLogMode("local");
+                }}>＋ Log All {aiParsed.length} Items</button>
+              </div>
+            )}
+          </div>
+        )}
+        <button onClick={() => setShowCustomFood(!showCustomFood)} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: T.accent2, fontSize: 12, cursor: "pointer", padding: "0 0 10px", fontFamily: T.sans, fontWeight: 600 }}>
+          + {showCustomFood ? "Cancel" : "Can't find it? Add a custom food"}
+        </button>
+        {showCustomFood && (
+          <div style={{ background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 12, marginBottom: 10, border: `1px solid ${T.border}` }}>
+            <input placeholder="Food name" value={customFood.name} onChange={(e) => setCustomFood({ ...customFood, name: e.target.value })} style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+            <input placeholder="Unit (e.g. 1 cup)" value={customFood.unit} onChange={(e) => setCustomFood({ ...customFood, unit: e.target.value })} style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <input placeholder="kcal" value={customFood.kcal} onChange={(e) => setCustomFood({ ...customFood, kcal: e.target.value })} style={inputStyle} />
+              <input placeholder="protein g" value={customFood.p} onChange={(e) => setCustomFood({ ...customFood, p: e.target.value })} style={inputStyle} />
+              <input placeholder="carbs g" value={customFood.c} onChange={(e) => setCustomFood({ ...customFood, c: e.target.value })} style={inputStyle} />
+              <input placeholder="fat g" value={customFood.f} onChange={(e) => setCustomFood({ ...customFood, f: e.target.value })} style={inputStyle} />
+              <input placeholder="fiber g" value={customFood.fiber} onChange={(e) => setCustomFood({ ...customFood, fiber: e.target.value })} style={inputStyle} />
+            </div>
+            <button style={btnStyle} onClick={() => {
+              if (!customFood.name.trim() || !customFood.kcal) return;
+              const entry = { name: customFood.name.trim(), unit: customFood.unit || "1 serving", kcal: parseFloat(customFood.kcal) || 0, p: parseFloat(customFood.p) || 0, c: parseFloat(customFood.c) || 0, f: parseFloat(customFood.f) || 0, fiber: parseFloat(customFood.fiber) || 0, iron: 0, calcium: 0, sodium: 0, potassium: 0 };
+              addFoodToDb(entry); setFoodPick(entry.name);
+              setCustomFood({ name: "", unit: "1 serving", kcal: "", p: "", c: "", f: "", fiber: "" });
+              setShowCustomFood(false);
+            }}>Add to food list</button>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 6, padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 10 }}>
+          <input type="number" min="0.5" step="0.5" value={qty} onChange={(e) => setQty(parseFloat(e.target.value) || 0)} style={{ ...inputStyle, width: 70 }} />
+          <div>
+            <div style={{ fontSize: 13, color: T.ink, fontWeight: 600 }}>{food.name}</div>
+            <div style={{ fontSize: 12, color: T.soft }}>{food.unit} × {qty} = <span style={{ color: T.accent, fontWeight: 700 }}>{Math.round(food.kcal * qty)} kcal</span></div>
+          </div>
+        </div>
+        <button style={{ ...btnStyle, width: "100%", marginTop: 10, padding: "12px", fontSize: 14 }} onClick={() => {
+          addFood({ meal, name: food.name, kcal: food.kcal * qty, p: food.p * qty, c: food.c * qty, f: food.f * qty, fiber: food.fiber * qty, iron: food.iron * qty, calcium: food.calcium * qty, sodium: food.sodium * qty, potassium: food.potassium * qty });
+        }}>＋ Add to {meal}</button>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- Awards tab ---------- */
+function AwardsTab({ workoutLog, meals, profile, plan, exerciseDb, dateLabel }) {
+  const volumeByGroup = useMemo(() => {
+    const m = {};
+    workoutLog.forEach((ex) => {
+      const g = groupFor(ex.name, exerciseDb);
+      const v = ex.sets.reduce((s, st) => s + st.weight * st.reps, 0);
+      m[g] = (m[g] || 0) + v;
+    });
+    return Object.entries(m).map(([group, volume]) => ({ group, volume: Math.round(volume) }));
+  }, [workoutLog, exerciseDb]);
+
+  const totals = meals.reduce((a, m) => ({ kcal: a.kcal + m.kcal, p: a.p + m.p }), { kcal: 0, p: 0 });
+  const setVolume = workoutLog.reduce((sum, ex) => sum + ex.sets.reduce((s, st) => s + st.weight * st.reps, 0), 0);
+  const totalSets = workoutLog.reduce((s, ex) => s + ex.sets.length, 0);
+  const macroTargets = { p: personalizedTargets(profile, plan.target).protein };
+
+  const calorieOnTarget = totals.kcal > 0 && totals.kcal <= plan.target;
+  const proteinOnTarget = totals.p >= macroTargets.p * 0.8;
+  const workoutLogged = workoutLog.length > 0;
+  const badges = [
+    { label: "Calories on target", earned: calorieOnTarget, icon: "🎯" },
+    { label: "Protein goal", earned: proteinOnTarget, icon: "💪" },
+    { label: "Workout logged", earned: workoutLogged, icon: "🏋️" },
+    { label: "Balanced day", earned: calorieOnTarget && proteinOnTarget && workoutLogged, icon: "🏆" },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Card style={{ background: T.goldSoft, border: `1px solid ${T.gold}33` }}>
+        <Label>{dateLabel}'s badges</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {badges.map((b) => (
+            <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 8, opacity: b.earned ? 1 : 0.35 }}>
+              <span style={{ fontSize: 20 }}>{b.icon}</span>
+              <span style={{ fontSize: 12, color: T.ink }}>{b.label}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <Label>Food vs workout — {dateLabel}</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+          <div>Calories eaten <Num size={14}>{totals.kcal}</Num></div>
+          <div>Calorie target <Num size={14}>{plan.target}</Num></div>
+          <div>Protein eaten <Num size={14}>{Math.round(totals.p)}g</Num></div>
+          <div>Sets trained <Num size={14}>{totalSets}</Num></div>
+          <div>Training volume <Num size={14}>{Math.round(setVolume)}kg</Num></div>
+          <div>Net status <Num size={14} color={calorieOnTarget ? T.good : T.alert}>{calorieOnTarget ? "On track" : "Over"}</Num></div>
+        </div>
+      </Card>
+
+      <Card style={{ background: T.goodSoft, border: `1px solid ${T.good}22` }}>
+        <Label>End-of-day review (auto)</Label>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: T.ink, lineHeight: 1.6 }}>
+          {!proteinOnTarget && <li>Protein is running low — add a curd, egg, or dal serving.</li>}
+          {totals.kcal > plan.target && <li>Over calorie target today — keep dinner lighter or extend tomorrow's workout.</li>}
+          {!workoutLogged && <li>No workout logged — even a short session keeps the weekly volume on track.</li>}
+          {calorieOnTarget && proteinOnTarget && workoutLogged && <li>Solid day — calories, protein, and training all on target. Keep this pattern going tomorrow.</li>}
+        </ul>
+      </Card>
+
+      <Card>
+        <Label>Weight trend (kg)</Label>
+        <WeightTrendChart data={WEIGHT_HISTORY} />
+      </Card>
+
+      <Card>
+        <Label>Body composition (latest InBody)</Label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13 }}>
+          <div>Weight <Num size={14}>{profile.weight} kg</Num></div>
+          <div>Body fat <Num size={14}>32.8%</Num></div>
+          <div>Muscle mass <Num size={14}>32.8 kg</Num></div>
+          <div>Visceral fat <Num size={14}>13</Num></div>
+          <div>Goal weight <Num size={14}>{profile.goalWeight} kg</Num></div>
+          <div>To lose <Num size={14}>{(profile.weight - profile.goalWeight).toFixed(1)} kg</Num></div>
+        </div>
+      </Card>
+
+      <Card>
+        <Label>Training volume by muscle group (kg lifted)</Label>
+        {volumeByGroup.length === 0 ? <div style={{ fontSize: 13, color: T.soft }}>Log a few workouts to see the balance across muscle groups.</div> : <VolumeBarChart data={volumeByGroup} />}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- Profile tab ---------- */
+function ProfileTab({ profile, setProfile, plan, onReset }) {
+  const field = (k, label, unit) => (
+    <div style={{ marginBottom: 10 }}>
+      <Label>{label}</Label>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <input type="number" value={profile[k]} onChange={(e) => { const v = e.target.value; setProfile({ ...profile, [k]: v === "" ? "" : parseFloat(v) }); }} style={{ ...inputStyle, width: 90 }} />
+        <span style={{ fontSize: 12, color: T.soft }}>{unit}</span>
+      </div>
+    </div>
+  );
+  const pct = Math.round((plan.target / plan.tdee) * 100);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Card>
+        <Label>Your stats</Label>
+        {field("weight", "Current weight", "kg")}
+        {field("height", "Height", "cm")}
+        {field("age", "Age", "years")}
+        {field("goalWeight", "Goal weight", "kg")}
+        <Label>Activity level</Label>
+        <select value={profile.activity} onChange={(e) => setProfile({ ...profile, activity: e.target.value })} style={selectStyle}>
+          <option value="sedentary">Sedentary — little to no exercise</option>
+          <option value="light">Light — 1–3 workouts/week</option>
+          <option value="moderate">Moderate — 4–5 workouts/week</option>
+          <option value="active">Active — daily training</option>
+        </select>
+      </Card>
+
+      <Card>
+        <Label>Your plan (calculated)</Label>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 108, height: 108, position: "relative", flexShrink: 0 }}>
+            <RadialProgress pct={pct} />
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <Num size={20} color={T.accent}>{plan.target}</Num>
+              <span style={{ fontSize: 10, color: T.soft }}>kcal/day</span>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: T.soft, lineHeight: 1.5 }}>
+            <span style={{ color: T.ink }}>{pct}%</span> of your {plan.tdee} kcal maintenance level — a {plan.tdee - plan.target} kcal daily deficit, safely capped.
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 }}>
+          <div style={{ background: T.goodSoft, borderRadius: 8, padding: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+              <span style={{ fontSize: 13 }}>📉</span>
+              <span style={{ fontSize: 11, color: T.soft }}>Weekly loss</span>
+            </div>
+            <Num size={16} color={T.good}>{plan.weeklyLossKg.toFixed(2)} kg</Num>
+          </div>
+          <div style={{ background: "rgba(255,107,53,0.10)", borderRadius: 10, padding: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+              <span style={{ fontSize: 13 }}>🗓️</span>
+              <span style={{ fontSize: 11, color: T.soft }}>Time to goal</span>
+            </div>
+            <Num size={16} color={T.accent}>{plan.weeks ? `${plan.weeks} wks` : "—"}</Num>
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: T.soft, marginTop: 10, display: "flex", gap: 5 }}>
+          <span style={{ flexShrink: 0 }}>🔥</span>
+          Capped near a safe 0.5–1% of bodyweight per week — the target never drops below a healthy floor.
+        </div>
+      </Card>
+
+      <button onClick={onReset} style={{ background: "none", border: "none", color: T.alert, fontSize: 12, cursor: "pointer", padding: "4px 0", textAlign: "left" }}>
+        Reset all saved data
+      </button>
+    </div>
+  );
+}
+
+function formatDateLabel(iso, todayISO) {
+  if (iso === todayISO) return "Today";
+  const yest = new Date(todayISO + "T00:00:00"); yest.setDate(yest.getDate() - 1);
+  if (iso === yest.toISOString().slice(0, 10)) return "Yesterday";
+  return new Date(iso + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/* ---------- App shell ---------- */
+function App() {
+  const saved = loadSaved();
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  const [profile, setProfile] = useState(saved?.profile || { weight: 88.1, height: 179, age: 28, sex: "male", goalWeight: 70.5, activity: "moderate" });
+  const [meals, setMeals] = useState(saved?.meals || []);
+  const [workoutLog, setWorkoutLog] = useState(
+    saved?.workoutLog || parseHevyText(RAW_HEVY_TEXT).map((e) => ({ ...e, date: todayISO }))
+  );
+  const [exerciseDb, setExerciseDb] = useState(saved?.exerciseDb || SEED_EXERCISES);
+  const [foodDb, setFoodDb] = useState(saved?.foodDb || SEED_FOODS);
+  const [mealPlans, setMealPlans] = useState(saved?.mealPlans || []);
+  const [tab, setTab] = useState("Profile");
+  const [viewDate, setViewDate] = useState(todayISO);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ profile, meals, workoutLog, exerciseDb, foodDb, mealPlans })); }
+    catch (e) { /* storage unavailable — app still works, just won't persist */ }
+  }, [profile, meals, workoutLog, exerciseDb, foodDb, mealPlans]);
+
+  const plan = safeDeficitPlan(profile);
+  const addFood = (m) => setMeals([...meals, { ...m, date: viewDate }]);
+  const addWorkout = (exs) => setWorkoutLog([...workoutLog, ...exs.map((e) => ({ ...e, date: viewDate }))]);
+  const removeWorkout = (i) => setWorkoutLog(workoutLog.filter((_, idx) => idx !== i));
+  const addExercise = (e) => setExerciseDb([...exerciseDb, e]);
+  const addFoodToDb = (f) => {
+    if (foodDb.some((x) => x.name === f.name)) return; // already in list
+    setFoodDb([...foodDb, f]);
+  };
+  const saveMealPlan = (plan) => setMealPlans([...mealPlans, plan]);
+  const deleteMealPlan = (idx) => setMealPlans(mealPlans.filter((_, i) => i !== idx));
+  const resetAll = () => {
+    if (!window.confirm("This clears all logged meals, workouts, and your saved profile. Continue?")) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    window.location.reload();
+  };
+
+  const viewMeals = meals.filter((m) => m.date === viewDate);
+  const workoutWithIdx = workoutLog.map((w, i) => ({ ...w, _idx: i }));
+  const viewWorkout = workoutWithIdx.filter((w) => w.date === viewDate);
+  const dateLabel = formatDateLabel(viewDate, todayISO);
+
+  const TABS = [
+    { id: "Profile", icon: "👤" },
+    { id: "Workout", icon: "🏋️" },
+    { id: "Food",    icon: "🥗" },
+    { id: "Awards",  icon: "🏆" },
+  ];
+
+  return (
+    <div style={{ fontFamily: T.sans, background: T.bg, minHeight: "100vh", display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: 420, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+
+        {/* ── Header ── */}
+        <div style={{ padding: "20px 16px 12px", background: "linear-gradient(180deg,rgba(177,79,255,0.12) 0%,transparent 100%)" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+            <GradText style={{ fontSize: 28, fontWeight: 900, letterSpacing: "-0.5px" }}>Thali</GradText>
+            <span style={{ fontSize: 12, color: T.soft }}>nutrition &amp; training</span>
+          </div>
+          {(tab === "Workout" || tab === "Food" || tab === "Awards") && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+              <input
+                type="date" value={viewDate} max={todayISO}
+                onChange={(e) => setViewDate(e.target.value)}
+                style={{ ...inputStyle, fontSize: 12, padding: "5px 10px" }}
+              />
+              <span style={{ fontSize: 12, color: T.soft }}>{dateLabel}</span>
+              {viewDate !== todayISO && (
+                <button onClick={() => setViewDate(todayISO)} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, cursor: "pointer", padding: 0, fontWeight: 600, fontFamily: T.sans }}>
+                  → Today
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Content ── */}
+        <div style={{ flex: 1, padding: "0 14px 110px", overflowY: "auto" }}>
+          {tab === "Profile" && <ProfileTab profile={profile} setProfile={setProfile} plan={plan} onReset={resetAll} />}
+          {tab === "Workout" && <WorkoutTab workoutLog={viewWorkout} addWorkout={addWorkout} removeWorkout={removeWorkout} profile={profile} exerciseDb={exerciseDb} addExercise={addExercise} dateLabel={dateLabel} />}
+          {tab === "Food" && <FoodTab meals={viewMeals} addFood={addFood} plan={plan} profile={profile} foodDb={foodDb} addFoodToDb={addFoodToDb} mealPlans={mealPlans} saveMealPlan={saveMealPlan} deleteMealPlan={deleteMealPlan} dateLabel={dateLabel} />}
+          {tab === "Awards" && <AwardsTab workoutLog={viewWorkout} meals={viewMeals} profile={profile} plan={plan} exerciseDb={exerciseDb} dateLabel={dateLabel} />}
+        </div>
+
+        {/* ── Tab bar ── */}
+        <div style={{
+          position: "fixed", bottom: 0, width: "100%", maxWidth: 420,
+          backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+          background: "rgba(11,11,24,0.88)",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          display: "flex", justifyContent: "space-around",
+          padding: "10px 0 calc(10px + env(safe-area-inset-bottom))",
+        }}>
+          {TABS.map(({ id, icon }) => {
+            const active = tab === id;
+            return (
+              <button key={id} onClick={() => setTab(id)} style={{
+                background: "none", border: "none", cursor: "pointer",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+                padding: "4px 16px", minWidth: 64,
+              }}>
+                <span style={{ fontSize: 20 }}>{icon}</span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
+                  color: active ? "transparent" : T.soft,
+                  background: active ? T.gradAccent : "none",
+                  WebkitBackgroundClip: active ? "text" : "unset",
+                  WebkitTextFillColor: active ? "transparent" : T.soft,
+                  backgroundClip: active ? "text" : "unset",
+                }}>{id.toUpperCase()}</span>
+                {active && <div style={{ width: 20, height: 3, borderRadius: 99, background: T.gradAccent, marginTop: 1 }} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
