@@ -1758,7 +1758,8 @@ function AwardsTab({ workoutLog, allWorkouts, meals, allMeals, profile, plan, ex
           burnByDate[w.date] = (burnByDate[w.date] || 0) + (w.burn || 0);
         });
 
-        const dates = [...new Set([...Object.keys(mealsByDate), ...Object.keys(burnByDate)])].sort();
+        // Only count days where food was actually logged — missing days ≠ 0 calories eaten
+        const dates = Object.keys(mealsByDate).sort();
         if (dates.length === 0) return null;
 
         // Build cumulative deficit → estimated weight per day
